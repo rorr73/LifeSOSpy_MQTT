@@ -71,7 +71,7 @@ DEFAULT_CONFIG = """
     """ + CONF_TOPIC + """: home/alarm
   
   # List your enrolled devices here and provide a topic
-  # Hint: Run with '-d' option to get a list of device ids
+  # Hint: Run with '-e' option to get a list of device ids
   """ + CONF_DEVICES + """:
     #- """ + CONF_DEVICE_ID + """: '012cba'
     #  """ + CONF_TOPIC + """: home/remote

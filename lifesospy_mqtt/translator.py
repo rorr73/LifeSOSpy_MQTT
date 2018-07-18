@@ -3,12 +3,12 @@ This module contains the Translator class.
 """
 
 import asyncio
-import dateutil
 import json
 import logging
 import signal
 import sys
 from typing import List, Optional, Any
+import dateutil
 from hbmqtt.client import MQTTClient, QOS_1
 from hbmqtt.session import ApplicationMessage
 from lifesospy.baseunit import BaseUnit
@@ -17,7 +17,7 @@ from lifesospy.device import Device, SpecialDevice
 from lifesospy.enums import (
     SwitchNumber, DeviceEventCode, DCFlags, ESFlags, SSFlags, SwitchFlags,
     OperationMode, BaseUnitState, ContactIDEventQualifier as EventQualifier,
-    ContactIDEventCategory as EventCategory)
+    ContactIDEventCategory as EventCategory, DeviceType)
 from lifesospy.propertychangedinfo import PropertyChangedInfo
 from lifesospy_mqtt.config import Config
 from lifesospy_mqtt.enums import OnOff, OpenClosed
@@ -53,7 +53,7 @@ class Translator(object):
     def __init__(self, config: Config):
         self._config = config
         self._loop = asyncio.get_event_loop()
-        self._exit_loop = False
+        self._shutdown = False
         self._auto_reset_handles = {}
 
         # Create LifeSOS base unit instance and attach callbacks
@@ -122,6 +122,8 @@ class Translator(object):
     async def async_start(self) -> None:
         """Starts up the LifeSOS interface and connects to MQTT broker."""
 
+        self._shutdown = False
+
         # Start up the LifeSOS interface
         self._baseunit.start()
 
@@ -140,16 +142,10 @@ class Translator(object):
     async def async_loop(self) -> None:
         """Loop indefinitely to process messages from our subscriptions."""
 
-        self._exit_loop = False
-
-        def _sigint_handler(sig, frame):
-            _LOGGER.debug('SIGINT received; exiting loop...')
-            self._exit_loop = True
-
         # Trap SIGINT so that we can shutdown gracefully
-        signal.signal(signal.SIGINT, _sigint_handler)
+        signal.signal(signal.SIGINT, self.signal_shutdown)
         try:
-            while not self._exit_loop:
+            while not self._shutdown:
                 # Wait for next message
                 try:
                     message = await self._mqtt.deliver_message(timeout=1)
@@ -186,6 +182,11 @@ class Translator(object):
 
         # Disconnect from the MQTT broker
         await self._mqtt.disconnect()
+
+    def signal_shutdown(self, sig, frame):
+        """Flag shutdown when signal received."""
+        _LOGGER.debug('%s received; shutting down...', signal.Signals(sig).name)
+        self._shutdown = True
 
     #
     # METHODS - Private / Internal
@@ -317,8 +318,12 @@ class Translator(object):
         # Device topic holds the state
         if (not isinstance(device, SpecialDevice)) and \
                 name == Device.PROP_IS_CLOSED:
-            # For regular device, this is the Is Closed property
-            self._publish(topic_parent, OpenClosed.parse_value(value), True)
+            # For regular device; this is the Is Closed property for magnet
+            # sensors, otherwise default to Off for trigger-based devices
+            if device.type == DeviceType.DoorMagnet:
+                self._publish(topic_parent, OpenClosed.parse_value(value), True)
+            else:
+                self._publish(topic_parent, OnOff.Off, True)
         elif isinstance(device, SpecialDevice) and \
                 name == SpecialDevice.PROP_CURRENT_READING:
             # For special device, this is the current reading
