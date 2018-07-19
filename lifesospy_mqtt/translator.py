@@ -185,7 +185,8 @@ class Translator(object):
 
     def signal_shutdown(self, sig, frame):
         """Flag shutdown when signal received."""
-        _LOGGER.debug('%s received; shutting down...', signal.Signals(sig).name)
+        _LOGGER.debug('%s received; shutting down...',
+                      signal.Signals(sig).name) # pylint: disable=no-member
         self._shutdown = True
 
     #
