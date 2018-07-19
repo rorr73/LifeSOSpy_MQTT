@@ -105,7 +105,7 @@ def main(argv):
     elif config.is_default:
         print("\nA default configuration file has been created:\n{}\n\n"
               "Please edit any settings as needed then restart."
-              .format(config.config_path))
+              .format(os.path.abspath(args.configfile)))
         sys.exit(EX_CONFIG)
 
     # Apply the config settings to logger system
@@ -122,6 +122,8 @@ def main(argv):
         from daemon.pidfile import TimeoutPIDLockFile
         print("Starting daemon.")
         with daemon.DaemonContext(
+            working_directory=workdir,
+            stderr=None if not args.verbose else sys.stderr,
             pidfile=None if not args.pidfile else \
                     TimeoutPIDLockFile(args.pidfile, acquire_timeout=-1),
             files_preserve=[None if not logfile_handler else \
