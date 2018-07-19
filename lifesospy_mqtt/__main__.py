@@ -10,11 +10,17 @@ import os
 import sys
 from lifesospy.protocol import Protocol
 from lifesospy_mqtt.config import Config
-from lifesospy_mqtt.const import EX_OK, EX_NOHOST, EX_CONFIG
-from lifesospy_mqtt.const import PROJECT_VERSION, PROJECT_DESCRIPTION
+from lifesospy_mqtt.const import (
+    EX_OK, EX_NOHOST, EX_CONFIG, PROJECT_NAME, PROJECT_VERSION,
+    PROJECT_DESCRIPTION)
 from lifesospy_mqtt.translator import Translator
 
 _LOGGER = logging.getLogger(__name__)
+
+DEFAULT_CONFIGFILE = 'config.yaml'
+DEFAULT_LOGFILE = 'log'
+DEFAULT_PIDFILE = 'pid'
+DEFAULT_WORKDIR = '~/.{}'.format(PROJECT_NAME)
 
 
 def main(argv):
@@ -23,38 +29,53 @@ def main(argv):
     """
 
     # Display application header
-    print("LifeSOSpy_MQTT v{} - {}\n".format(
-        PROJECT_VERSION, PROJECT_DESCRIPTION))
+    print("{} v{} - {}\n".format(
+        PROJECT_NAME, PROJECT_VERSION, PROJECT_DESCRIPTION))
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        prog="{} -m {}".format(os.path.split(sys.executable)[1], PROJECT_NAME))
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '-d', '--daemon',
-        help="Put the application into the background after starting.",
-        action='store_true')
-    group.add_argument(
         '-e', '--devices',
-        help="List devices enrolled on base unit and exit.",
+        help="list devices enrolled on base unit and exit",
         action='store_true')
-    parser.add_argument(
-        '-c', '--config',
-        help="Path to configuration file.",
-        default=Config.get_default_path())
-    parser.add_argument(
-        '-l', '--logfile',
-        help="When specified, path to daily rolling log file to be used.",
-        default=None)
-    parser.add_argument(
-        '-p', '--pidfile',
-        help="When specified, path to file that will record the process ID"
-             " and is used for locking.",
-        default=None)
     parser.add_argument(
         '-v', '--verbose',
-        help="Display all logging output.",
+        help="display all logging output.",
         action='store_true')
+    group.add_argument(
+        '-d', '--daemon',
+        help="put the application into the background after starting",
+        action='store_true')
+    parser.add_argument(
+        '-w', '--workdir',
+        help="work directory used to store config, log and pid files "
+             "(default: %(default)s)",
+        default=DEFAULT_WORKDIR)
+    parser.add_argument(
+        '-c', '--configfile',
+        help="configuration file name (default: %(default)s)",
+        default=DEFAULT_CONFIGFILE)
+    parser.add_argument(
+        '-l', '--logfile',
+        help="if specified, will write to a daily rolling log file "
+             "(default: %(default)s)",
+        nargs='?',
+        const=DEFAULT_LOGFILE)
+    parser.add_argument(
+        '-p', '--pidfile',
+        help="if specified, file will be create to record the process ID and "
+             "is used for locking (default: %(default)s)",
+        nargs='?',
+        const=DEFAULT_PIDFILE)
     args = parser.parse_args()
+
+    # Change to the work directory; create if needed
+    workdir = os.path.expanduser(os.path.expandvars(args.workdir))
+    if not os.path.isdir(workdir):
+        os.mkdir(workdir)
+    os.chdir(workdir)
 
     # Create log handlers; attach daily rolling log file handler if needed
     handlers = [logging.StreamHandler()]
@@ -78,7 +99,7 @@ def main(argv):
         sys.exit(EX_CONFIG)
 
     # Load the configuration file, or create default if none exists
-    config = Config.load(args.config)
+    config = Config.load(args.configfile)
     if not config:
         sys.exit(EX_CONFIG)
     elif config.is_default:

@@ -127,24 +127,17 @@ DEFAULT_CONFIG = """
   #  lifesos: """ + str(LoggerLevel.Debug).lower() + """
   #  hbmqtt: """ + str(LoggerLevel.Debug).lower() + """
 """
-DEFAULT_FILENAME = '.lifesospy_mqtt.yaml'
 
 
 class Config(object):
     """Contains the configuration settings."""
 
-    def __init__(self, config_path: str, settings: Dict[str, Any], is_default: bool):
-        self._config_path = config_path
+    def __init__(self, settings: Dict[str, Any], is_default: bool):
         self._lifesos = LifeSOSConfig(settings[GROUP_LIFESOS])
         self._mqtt = MQTTConfig(settings[GROUP_MQTT])
         self._translator = TranslatorConfig(settings[GROUP_TRANSLATOR])
         self._logger = LoggerConfig(settings.get(GROUP_LOGGER))
         self._is_default = is_default
-
-    @property
-    def config_path(self) -> str:
-        """Path to the configuration file."""
-        return self._config_path
 
     @property
     def is_default(self) -> bool:
@@ -172,21 +165,9 @@ class Config(object):
         return self._translator
 
     @classmethod
-    def get_default_path(cls) -> str:
-        """Default path for the configuration file."""
-        return os.path.join(
-            os.getenv('APPDATA') if os.name == "nt" else os.path.expanduser(
-                '~'),
-            DEFAULT_FILENAME)
-
-    @classmethod
     def load(cls, config_path: str) -> Optional['Config']:
         """Load the configuration file, or create default if none exists."""
         is_default = False
-
-        # When user specifies directory only, assume default filename
-        if os.path.isdir(config_path):
-            config_path = os.path.join(config_path, DEFAULT_FILENAME)
 
         if os.path.isfile(config_path):
             # Specified file exists; we can simply use that
@@ -213,7 +194,7 @@ class Config(object):
             return None
 
         # Return instance of the configuration settings
-        return Config(config_path, settings, is_default)
+        return Config(settings, is_default)
 
     def __repr__(self):
         return "<{}: is_default={}, {}, {}, {}, {}>".format(
