@@ -20,6 +20,8 @@ CONF_CLIENT_ID = 'client_id'
 CONF_DEFAULT = 'default'
 CONF_DEVICE_ID = 'device_id'
 CONF_DEVICES = 'devices'
+CONF_HA_DISCOVERY_PREFIX = 'ha_discovery_prefix'
+CONF_HA_NAME = 'ha_name'
 CONF_HOST = 'host'
 CONF_NAMESPACES = 'namespaces'
 CONF_PASSWORD = 'password'
@@ -66,6 +68,12 @@ DEFAULT_CONFIG = """
 # Settings for the translator between LifeSOS and MQTT
 """ + GROUP_TRANSLATOR + """:
 
+  # To automatically configure devices in Home Assistant, ensure this line is
+  # uncommented and matches the setting in it's config file. Any devices and
+  # switches will need to be assigned a '""" + CONF_HA_NAME + """"' to be exported.
+  # Refer https://www.home-assistant.io/docs/mqtt/discovery/
+  """ + CONF_HA_DISCOVERY_PREFIX + """: homeassistant
+
   # Provide a topic for the Base Unit here
   """ + CONF_BASEUNIT + """:
     """ + CONF_TOPIC + """: home/alarm
@@ -77,14 +85,17 @@ DEFAULT_CONFIG = """
     #  """ + CONF_TOPIC + """: home/remote
     #- """ + CONF_DEVICE_ID + """: '345def'
     #  """ + CONF_TOPIC + """: home/front/door
+    #  """ + CONF_HA_NAME + """: "Front Door"
     #- """ + CONF_DEVICE_ID + """: '123abc'
     #  """ + CONF_TOPIC + """: home/lounge/motion
     #  """ + CONF_AUTO_RESET_INTERVAL + """: 180
+    #  """ + CONF_HA_NAME + """: "Lounge Motion"
   
   # Uncomment any switches you own and provide a topic
   """ + CONF_SWITCHES + """:
     #- """ + CONF_SWITCH_NUMBER + """: 1
     #  """ + CONF_TOPIC + """: home/lounge/heater
+    #  """ + CONF_HA_NAME + """: "Lounge Heater"
     #- """ + CONF_SWITCH_NUMBER + """: 2
     #  """ + CONF_TOPIC + """: home/room/switch02
     #- """ + CONF_SWITCH_NUMBER + """: 3
@@ -292,6 +303,7 @@ class TranslatorConfig(object):
     """Configuration settings for the translator between LifeSOS and MQTT."""
 
     def __init__(self, settings: Dict[str, Any]):
+        self._ha_discovery_prefix = settings.get(CONF_HA_DISCOVERY_PREFIX)
         baseunit_settings = settings[CONF_BASEUNIT]
         self._baseunit = baseunit_settings[CONF_TOPIC]
 
@@ -312,7 +324,8 @@ class TranslatorConfig(object):
                 if switch_number is None:
                     raise ValueError(
                         "{} is out of range".format(CONF_SWITCH_NUMBER))
-                self._switches[switch_number] = switch_settings[CONF_TOPIC]
+                self._switches[switch_number] = \
+                    TranslatorSwitchConfig(switch_settings)
 
     @property
     def baseunit(self) -> str:
@@ -325,8 +338,13 @@ class TranslatorConfig(object):
         return self._devices
 
     @property
-    def switches(self) -> Dict[SwitchNumber, str]:
-        """Topic for each switch; lookup by switch number."""
+    def ha_discovery_prefix(self) -> str:
+        """Discovery prefix to auto configure devices in Home Assistant."""
+        return self._ha_discovery_prefix
+
+    @property
+    def switches(self) -> Dict[SwitchNumber, 'TranslatorSwitchConfig']:
+        """Configuration for each switch; lookup by switch number."""
         return self._switches
 
     def __repr__(self):
@@ -344,6 +362,7 @@ class TranslatorDeviceConfig(object):
     def __init__(self, settings: Dict[str, Any]):
         self._topic = settings[CONF_TOPIC]
         self._auto_reset_interval = settings.get(CONF_AUTO_RESET_INTERVAL)
+        self._ha_name = settings.get(CONF_HA_NAME)
 
     @property
     def auto_reset_interval(self) -> int:
@@ -351,9 +370,47 @@ class TranslatorDeviceConfig(object):
         return self._auto_reset_interval
 
     @property
+    def ha_name(self) -> str:
+        """Name to assign the device in Home Assistant."""
+        return self._ha_name
+
+    @property
     def topic(self) -> str:
         """Topic for the device."""
         return self._topic
+
+    def __repr__(self):
+        return "<{}: topic={}, auto_reset_interval={}, ha_name={}>".format(
+            self.__class__.__name__,
+            self._topic,
+            self._auto_reset_interval,
+            self._ha_name,
+        )
+
+
+class TranslatorSwitchConfig(object):
+    """Configuration settings for the translator specific to a switch."""
+
+    def __init__(self, settings: Dict[str, Any]):
+        self._topic = settings[CONF_TOPIC]
+        self._ha_name = settings.get(CONF_HA_NAME)
+
+    @property
+    def ha_name(self) -> str:
+        """Name to assign the switch in Home Assistant."""
+        return self._ha_name
+
+    @property
+    def topic(self) -> str:
+        """Topic for the switch."""
+        return self._topic
+
+    def __repr__(self):
+        return "<{}: topic={}, ha_name={}>".format(
+            self.__class__.__name__,
+            self._topic,
+            self._ha_name,
+        )
 
 
 class LoggerConfig(object):

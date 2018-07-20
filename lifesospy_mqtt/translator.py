@@ -19,7 +19,9 @@ from lifesospy.enums import (
     OperationMode, BaseUnitState, ContactIDEventQualifier as EventQualifier,
     ContactIDEventCategory as EventCategory, DeviceType)
 from lifesospy.propertychangedinfo import PropertyChangedInfo
-from lifesospy_mqtt.config import Config
+from lifesospy_mqtt.config import (
+    Config, TranslatorDeviceConfig, TranslatorSwitchConfig)
+from lifesospy_mqtt.const import PROJECT_NAME
 from lifesospy_mqtt.enums import OnOff, OpenClosed
 from lifesospy_mqtt.subscribetopic import SubscribeTopic
 
@@ -31,6 +33,43 @@ class Translator(object):
 
     # Default interval to wait before resetting Trigger device state to Off
     AUTO_RESET_INTERVAL = 30
+
+    # Keys for Home Assistant MQTT discovery configuration
+    HA_AVAILABILITY_TOPIC = 'availability_topic'
+    HA_COMMAND_TOPIC = 'command_topic'
+    HA_DEVICE_CLASS = 'device_class'
+    HA_NAME = 'name'
+    HA_PAYLOAD_AVAILABLE = 'payload_available'
+    HA_PAYLOAD_NOT_AVAILABLE = 'payload_not_available'
+    HA_PAYLOAD_OFF = 'payload_off'
+    HA_PAYLOAD_ON = 'payload_on'
+    HA_STATE_TOPIC = 'state_topic'
+    HA_UNIQUE_ID = 'unique_id'
+    HA_UNIT_OF_MEASUREMENT = 'unit_of_measurement'
+
+    # Device class to classify the sensor type in Home Assistant
+    HA_DC_DOOR = 'door'
+    HA_DC_GAS = 'gas'
+    HA_DC_HUMIDITY = 'humidity'
+    HA_DC_ILLUMINANCE = 'illuminance'
+    HA_DC_MOISTURE = 'moisture'
+    HA_DC_MOTION = 'motion'
+    HA_DC_SAFETY = 'safety'
+    HA_DC_SMOKE = 'smoke'
+    HA_DC_TEMPERATURE = 'temperature'
+    HA_DC_VIBRATION = 'vibration'
+    HA_DC_WINDOW = 'window'
+
+    # Platforms in Home Assistant to represent our devices
+    HA_PLATFORM_BINARY_SENSOR = 'binary_sensor'
+    HA_PLATFORM_SENSOR = 'sensor'
+    HA_PLATFORM_SWITCH = 'switch'
+
+    # Unit of measurement for Home Assistant sensors
+    HA_UOM_CURRENT = 'A'
+    HA_UOM_HUMIDITY = '%'
+    HA_UOM_ILLUMINANCE = 'Lux'
+    HA_UOM_TEMPERATURE = '°C'
 
     # Ping MQTT broker this many seconds apart to check we're connected
     KEEP_ALIVE = 30
@@ -103,13 +142,15 @@ class Translator(object):
                     self._on_message_baseunit,
                     args=name))
         for switch_number in self._config.translator.switches.keys():
-            self._subscribetopics.append(
-                SubscribeTopic(
-                    '{}/{}'.format(
-                        self._config.translator.switches[switch_number],
-                        Translator.TOPIC_SET),
-                    self._on_message_switch,
-                    args=switch_number))
+            switch_config = self._config.translator.switches.get(switch_number)
+            if switch_config and switch_config.topic:
+                self._subscribetopics.append(
+                    SubscribeTopic(
+                        '{}/{}'.format(
+                            switch_config.topic,
+                            Translator.TOPIC_SET),
+                        self._on_message_switch,
+                        args=switch_number))
 
         # Also create a lookup dict for the topics to subscribe to
         self._subscribetopics_lookup = \
@@ -138,6 +179,14 @@ class Translator(object):
 
         # Subscribe to topics we are capable of actioning
         await self._mqtt.subscribe(self._subscribetopics)
+
+        # When HA discovery is enabled, publish switch configuration to it
+        # (devices done later elsewhere, after we've enumerated them)
+        if self._config.translator.ha_discovery_prefix:
+            for switch_number in self._config.translator.switches.keys():
+                switch_config = self._config.translator.switches[switch_number]
+                if switch_config.ha_name:
+                    self._publish_ha_switch_config(switch_number, switch_config)
 
     async def async_loop(self) -> None:
         """Loop indefinitely to process messages from our subscriptions."""
@@ -199,12 +248,16 @@ class Translator(object):
         device.on_properties_changed = self._device_on_properties_changed
 
         # Publish initial property values for device
-        config = self._config.translator.devices.get(device.device_id)
-        if config and config.topic:
+        device_config = self._config.translator.devices.get(device.device_id)
+        if device_config and device_config.topic:
             props = device.as_dict()
             for name in props.keys():
                 self._publish_device_property(
-                    config.topic, device, name, getattr(device, name))
+                    device_config.topic, device, name, getattr(device, name))
+
+        # When HA discovery is enabled, publish device configuration to it
+        if self._config.translator.ha_discovery_prefix and device_config.ha_name:
+            self._publish_ha_device_config(device, device_config)
 
     def _baseunit_device_deleted(self, baseunit: BaseUnit, device: Device) -> None: # pylint: disable=no-self-use
         # Remove callbacks from deleted device
@@ -249,43 +302,43 @@ class Translator(object):
                                        switch_number: SwitchNumber,
                                        state: Optional[bool]) -> None:
         # When switch state changes, publish it
-        topic = self._config.translator.switches.get(switch_number)
-        if topic:
-            self._publish(topic, OnOff.parse_value(state), True)
+        switch_config = self._config.translator.switches.get(switch_number)
+        if switch_config and switch_config.topic:
+            self._publish(switch_config.topic, OnOff.parse_value(state), True)
 
     def _device_on_event(self, device: Device, event_code: DeviceEventCode) -> None:
-        config = self._config.translator.devices.get(device.device_id)
-        if config and config.topic:
+        device_config = self._config.translator.devices.get(device.device_id)
+        if device_config and device_config.topic:
             # When device event occurs, publish the event code
             # (don't bother retaining; events are time sensitive)
-            self._publish('{}/event_code'.format(config.topic), event_code, False)
+            self._publish('{}/event_code'.format(device_config.topic), event_code, False)
 
             # When it is a Trigger event, set state to On and schedule an
             # auto reset callback to occur after specified interval
             if event_code == DeviceEventCode.Trigger:
-                self._publish(config.topic, OnOff.parse_value(True), True)
+                self._publish(device_config.topic, OnOff.parse_value(True), True)
                 handle = self._auto_reset_handles.get(device.device_id)
                 if handle:
                     handle.cancel()
                 handle = self._loop.call_later(
-                    config.auto_reset_interval or Translator.AUTO_RESET_INTERVAL,
+                    device_config.auto_reset_interval or Translator.AUTO_RESET_INTERVAL,
                     self._auto_reset, device.device_id)
                 self._auto_reset_handles[device.device_id] = handle
 
     def _auto_reset(self, device_id: int):
         # Auto reset a Trigger device to Off state
-        config = self._config.translator.devices.get(device_id)
-        if config and config.topic:
-            self._publish(config.topic, OnOff.parse_value(False), True)
+        device_config = self._config.translator.devices.get(device_id)
+        if device_config and device_config.topic:
+            self._publish(device_config.topic, OnOff.parse_value(False), True)
         self._auto_reset_handles.pop(device_id)
 
     def _device_on_properties_changed(self, device: Device, changes: List[PropertyChangedInfo]):
         # When device properties change, publish them
-        config = self._config.translator.devices.get(device.device_id)
-        if config and config.topic:
+        device_config = self._config.translator.devices.get(device.device_id)
+        if device_config and device_config.topic:
             for change in changes:
                 self._publish_device_property(
-                    config.topic, device, change.name, change.new_value)
+                    device_config.topic, device, change.name, change.new_value)
 
     def _publish_baseunit_property(self, name: str, value: Any) -> None:
         topic_parent = self._config.translator.baseunit
@@ -368,6 +421,123 @@ class Translator(object):
                 SpecialDevice.PROP_CONTROL_HIGH_LIMIT,
                 SpecialDevice.PROP_CONTROL_LOW_LIMIT}:
             self._publish('{}/{}'.format(topic_parent, name), value, True)
+
+    def _publish_ha_device_config(self, device: Device,
+                                  device_config: TranslatorDeviceConfig):
+        # Generate message that can be used to automatically configure the
+        # device in Home Assistant using it's MQTT Discovery functionality
+        message = {
+            Translator.HA_NAME: device_config.ha_name,
+            Translator.HA_UNIQUE_ID: '{}_{:06x}'.format(
+                PROJECT_NAME, device.device_id),
+            Translator.HA_STATE_TOPIC: device_config.topic,
+            Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
+                self._config.translator.baseunit, BaseUnit.PROP_IS_CONNECTED),
+            Translator.HA_PAYLOAD_AVAILABLE: str(True),
+            Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
+        }
+        if device.type in {DeviceType.FloodDetector, DeviceType.FloodDetector2}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_MOISTURE
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.MedicalButton}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_SAFETY
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.AnalogSensor, DeviceType.AnalogSensor2}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.SmokeDetector}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_SMOKE
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.PressureSensor, DeviceType.PressureSensor2}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_MOTION
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.CODetector, DeviceType.CO2Sensor,
+                             DeviceType.CO2Sensor2, DeviceType.GasDetector}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_GAS
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.DoorMagnet}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_DOOR
+            message[Translator.HA_PAYLOAD_ON] = str(OpenClosed.Open)
+            message[Translator.HA_PAYLOAD_OFF] = str(OpenClosed.Closed)
+        elif device.type in {DeviceType.VibrationSensor}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_VIBRATION
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.PIRSensor}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_MOTION
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.GlassBreakDetector}:
+            ha_platform = Translator.HA_PLATFORM_BINARY_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_WINDOW
+            message[Translator.HA_PAYLOAD_ON] = str(OnOff.On)
+            message[Translator.HA_PAYLOAD_OFF] = str(OnOff.Off)
+        elif device.type in {DeviceType.HumidSensor, DeviceType.HumidSensor2}:
+            ha_platform = Translator.HA_PLATFORM_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_HUMIDITY
+            message[Translator.HA_UNIT_OF_MEASUREMENT] = Translator.HA_UOM_HUMIDITY
+        elif device.type in {DeviceType.TempSensor, DeviceType.TempSensor2}:
+            ha_platform = Translator.HA_PLATFORM_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_TEMPERATURE
+            message[Translator.HA_UNIT_OF_MEASUREMENT] = Translator.HA_UOM_TEMPERATURE
+        elif device.type in {DeviceType.LightSensor, DeviceType.LightDetector}:
+            ha_platform = Translator.HA_PLATFORM_SENSOR
+            message[Translator.HA_DEVICE_CLASS] = Translator.HA_DC_ILLUMINANCE
+            message[Translator.HA_UNIT_OF_MEASUREMENT] = Translator.HA_UOM_ILLUMINANCE
+        elif device.type in {
+                DeviceType.ACCurrentMeter, DeviceType.ACCurrentMeter2,
+                DeviceType.ThreePhaseACMeter}:
+            ha_platform = Translator.HA_PLATFORM_SENSOR
+            message[Translator.HA_UNIT_OF_MEASUREMENT] = Translator.HA_UOM_CURRENT
+        else:
+            _LOGGER.warning("Device type '%s' cannot be represented in Home "
+                            "Assistant and will be skipped.", str(device.type))
+            return
+        self._publish(
+            '{}/{}/{}/config'.format(
+                self._config.translator.ha_discovery_prefix,
+                ha_platform,
+                message[Translator.HA_UNIQUE_ID]),
+            json.dumps(message), True)
+
+    def _publish_ha_switch_config(self, switch_number: SwitchNumber,
+                                  switch_config: TranslatorSwitchConfig):
+        # Generate message that can be used to automatically configure the
+        # switch in Home Assistant using it's MQTT Discovery functionality
+        message = {
+            Translator.HA_NAME: switch_config.ha_name,
+            Translator.HA_UNIQUE_ID: '{}_{}'.format(
+                PROJECT_NAME, str(switch_number).lower()),
+            Translator.HA_STATE_TOPIC: switch_config.topic,
+            Translator.HA_COMMAND_TOPIC: '{}/{}'.format(
+                switch_config.topic, Translator.TOPIC_SET),
+            Translator.HA_PAYLOAD_ON: str(OnOff.On),
+            Translator.HA_PAYLOAD_OFF: str(OnOff.Off),
+            Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
+                self._config.translator.baseunit, BaseUnit.PROP_IS_CONNECTED),
+            Translator.HA_PAYLOAD_AVAILABLE: str(True),
+            Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
+        }
+        self._publish(
+            '{}/{}/{}/config'.format(
+                self._config.translator.ha_discovery_prefix,
+                Translator.HA_PLATFORM_SWITCH,
+                message[Translator.HA_UNIQUE_ID]),
+            json.dumps(message), True)
 
     def _publish(self, topic: str, message: Any, retain: bool) -> None:
         # Wrapper to start the async method
