@@ -23,7 +23,7 @@ DEFAULT_PIDFILE = 'pid'
 DEFAULT_WORKDIR = '~/.{}'.format(PROJECT_NAME)
 
 
-def main(argv):
+def main():
     """
     Runs MQTT loop to publish LifeSOS states.
     """
@@ -265,4 +265,4 @@ async def _async_new_protocol(config: Config) -> Protocol:
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()

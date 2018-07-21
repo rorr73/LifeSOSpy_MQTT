@@ -1,11 +1,19 @@
 import lifesospy_mqtt.const as mqtt_const
+import os
 
 from setuptools import setup
 
+
+def readme():
+    with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
+        return f.read()
+
+
 setup(
     name=mqtt_const.PROJECT_NAME,
-    description=mqtt_const.PROJECT_DESCRIPTION,
     version=mqtt_const.PROJECT_VERSION,
+    description=mqtt_const.PROJECT_DESCRIPTION,
+    long_description=readme(),
     packages=['lifesospy_mqtt'],
     install_requires=[
         'lifesospy~=0.10.0',
@@ -19,11 +27,11 @@ setup(
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Other Environment',
-        'Intended Audience :: Developers',
+        'Intended Audience :: End Users/Desktop',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Home Automation',
-        'Topic :: Software Development :: Libraries :: Python Modules'
+        'Topic :: Security',
     ],
     entry_points={
         'console_scripts': ['lifesospy_mqtt = lifesospy_mqtt.__main__:main']
