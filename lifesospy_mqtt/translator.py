@@ -115,6 +115,14 @@ class Translator(object):
                 'reconnect_retries': sys.maxsize,
                 'reconnect_max_interval': Translator.RECONNECT_INTERVAL,
                 'default_qos': QOS_1,
+                'will': {
+                    'topic': '{}/{}'.format(
+                        self._config.translator.baseunit,
+                        BaseUnit.PROP_IS_CONNECTED),
+                    'message': str(False).encode(),
+                    'qos': QOS_1,
+                    'retain': True,
+                },
             })
 
         # Generate a list of topics we'll need to subscribe to
