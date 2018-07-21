@@ -20,6 +20,8 @@ CONF_CLIENT_ID = 'client_id'
 CONF_DEFAULT = 'default'
 CONF_DEVICE_ID = 'device_id'
 CONF_DEVICES = 'devices'
+CONF_HA_BIRTH_PAYLOAD ='ha_birth_payload'
+CONF_HA_BIRTH_TOPIC = 'ha_birth_topic'
 CONF_HA_DISCOVERY_PREFIX = 'ha_discovery_prefix'
 CONF_HA_NAME = 'ha_name'
 CONF_HOST = 'host'
@@ -68,15 +70,21 @@ DEFAULT_CONFIG = """
 # Settings for the translator between LifeSOS and MQTT
 """ + GROUP_TRANSLATOR + """:
 
-  # To automatically configure devices in Home Assistant, ensure this line is
-  # uncommented and matches the setting in it's config file. Any devices and
+  # To automatically configure devices in Home Assistant, ensure this line
+  # matches the setting in Home Assistant's config file. Note any devices and
   # switches will need to be assigned a '""" + CONF_HA_NAME + """"' to be exported.
   # Refer https://www.home-assistant.io/docs/mqtt/discovery/
   """ + CONF_HA_DISCOVERY_PREFIX + """: homeassistant
+  
+  # Topic and Payload to announce Home Assistant has come online. When received,
+  # our MQTT client will send out the device configurations for discovery.
+  """ + CONF_HA_BIRTH_TOPIC + """: homeassistant/status
+  """ + CONF_HA_BIRTH_PAYLOAD + """: online
 
   # Provide a topic for the Base Unit here
   """ + CONF_BASEUNIT + """:
     """ + CONF_TOPIC + """: home/alarm
+    """ + CONF_HA_NAME + """: "LifeSOS"
   
   # List your enrolled devices here and provide a topic
   # Hint: Run with '-e' option to get a list of device ids
@@ -303,9 +311,11 @@ class TranslatorConfig(object):
     """Configuration settings for the translator between LifeSOS and MQTT."""
 
     def __init__(self, settings: Dict[str, Any]):
+        self._ha_birth_payload = settings.get(CONF_HA_BIRTH_PAYLOAD)
+        self._ha_birth_topic = settings.get(CONF_HA_BIRTH_TOPIC)
         self._ha_discovery_prefix = settings.get(CONF_HA_DISCOVERY_PREFIX)
         baseunit_settings = settings[CONF_BASEUNIT]
-        self._baseunit = baseunit_settings[CONF_TOPIC]
+        self._baseunit = TranslatorBaseUnitConfig(baseunit_settings)
 
         self._devices = {}
         devices_settings = settings.get(CONF_DEVICES)
@@ -328,14 +338,24 @@ class TranslatorConfig(object):
                     TranslatorSwitchConfig(switch_settings)
 
     @property
-    def baseunit(self) -> str:
-        """Topic for the base unit."""
+    def baseunit(self) -> 'TranslatorBaseUnitConfig':
+        """Configuration for the base unit."""
         return self._baseunit
 
     @property
     def devices(self) -> Dict[int, 'TranslatorDeviceConfig']:
         """Configuration for each enrolled device; lookup by device id."""
         return self._devices
+
+    @property
+    def ha_birth_payload(self) -> str:
+        """Payload used to identify when Home Assistant comes online."""
+        return self._ha_birth_payload
+
+    @property
+    def ha_birth_topic(self) -> str:
+        """Topic used to identify when Home Assistant comes online."""
+        return self._ha_birth_topic
 
     @property
     def ha_discovery_prefix(self) -> str:
@@ -353,6 +373,31 @@ class TranslatorConfig(object):
             self._baseunit,
             self._devices,
             self._switches,
+        )
+
+
+class TranslatorBaseUnitConfig(object):
+    """Configuration settings for the translator specific to base unit."""
+
+    def __init__(self, settings: Dict[str, Any]):
+        self._topic = settings[CONF_TOPIC]
+        self._ha_name = settings.get(CONF_HA_NAME)
+
+    @property
+    def ha_name(self) -> str:
+        """Name to assign the base unit in Home Assistant."""
+        return self._ha_name
+
+    @property
+    def topic(self) -> str:
+        """Topic for the base unit."""
+        return self._topic
+
+    def __repr__(self):
+        return "<{}: topic={}, ha_name={}>".format(
+            self.__class__.__name__,
+            self._topic,
+            self._ha_name,
         )
 
 

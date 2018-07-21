@@ -20,7 +20,8 @@ from lifesospy.enums import (
     ContactIDEventCategory as EventCategory, DeviceType)
 from lifesospy.propertychangedinfo import PropertyChangedInfo
 from lifesospy_mqtt.config import (
-    Config, TranslatorDeviceConfig, TranslatorSwitchConfig)
+    Config, TranslatorBaseUnitConfig, TranslatorDeviceConfig,
+    TranslatorSwitchConfig)
 from lifesospy_mqtt.const import PROJECT_NAME
 from lifesospy_mqtt.enums import OnOff, OpenClosed
 from lifesospy_mqtt.subscribetopic import SubscribeTopic
@@ -39,7 +40,10 @@ class Translator(object):
     HA_COMMAND_TOPIC = 'command_topic'
     HA_DEVICE_CLASS = 'device_class'
     HA_NAME = 'name'
+    HA_PAYLOAD_ARM_AWAY = 'payload_arm_away'
+    HA_PAYLOAD_ARM_HOME = 'payload_arm_home'
     HA_PAYLOAD_AVAILABLE = 'payload_available'
+    HA_PAYLOAD_DISARM = 'payload_disarm'
     HA_PAYLOAD_NOT_AVAILABLE = 'payload_not_available'
     HA_PAYLOAD_OFF = 'payload_off'
     HA_PAYLOAD_ON = 'payload_on'
@@ -61,6 +65,7 @@ class Translator(object):
     HA_DC_WINDOW = 'window'
 
     # Platforms in Home Assistant to represent our devices
+    HA_PLATFORM_ALARM_CONTROL_PANEL = 'alarm_control_panel'
     HA_PLATFORM_BINARY_SENSOR = 'binary_sensor'
     HA_PLATFORM_SENSOR = 'sensor'
     HA_PLATFORM_SWITCH = 'switch'
@@ -117,7 +122,7 @@ class Translator(object):
                 'default_qos': QOS_1,
                 'will': {
                     'topic': '{}/{}'.format(
-                        self._config.translator.baseunit,
+                        self._config.translator.baseunit.topic,
                         BaseUnit.PROP_IS_CONNECTED),
                     'message': str(False).encode(),
                     'qos': QOS_1,
@@ -130,13 +135,13 @@ class Translator(object):
         self._subscribetopics.append(
             SubscribeTopic(
                 '{}/{}'.format(
-                    self._config.translator.baseunit,
+                    self._config.translator.baseunit.topic,
                     Translator.TOPIC_CLEAR_STATUS),
                 self._on_message_clear_status))
         self._subscribetopics.append(
             SubscribeTopic(
                 '{}/{}/{}'.format(
-                    self._config.translator.baseunit,
+                    self._config.translator.baseunit.topic,
                     Translator.TOPIC_DATETIME,
                     Translator.TOPIC_SET),
                 self._on_message_set_datetime))
@@ -145,7 +150,7 @@ class Translator(object):
             self._subscribetopics.append(
                 SubscribeTopic(
                     '{}/{}/{}'.format(
-                        self._config.translator.baseunit,
+                        self._config.translator.baseunit.topic,
                         name, Translator.TOPIC_SET),
                     self._on_message_baseunit,
                     args=name))
@@ -159,6 +164,11 @@ class Translator(object):
                             Translator.TOPIC_SET),
                         self._on_message_switch,
                         args=switch_number))
+        if self._config.translator.ha_birth_topic:
+            self._subscribetopics.append(
+                SubscribeTopic(
+                    self._config.translator.ha_birth_topic,
+                    self._on_ha_message))
 
         # Also create a lookup dict for the topics to subscribe to
         self._subscribetopics_lookup = \
@@ -188,14 +198,6 @@ class Translator(object):
         # Subscribe to topics we are capable of actioning
         await self._mqtt.subscribe(self._subscribetopics)
 
-        # When HA discovery is enabled, publish switch configuration to it
-        # (devices done later elsewhere, after we've enumerated them)
-        if self._config.translator.ha_discovery_prefix:
-            for switch_number in self._config.translator.switches.keys():
-                switch_config = self._config.translator.switches[switch_number]
-                if switch_config.ha_name:
-                    self._publish_ha_switch_config(switch_number, switch_config)
-
     async def async_loop(self) -> None:
         """Loop indefinitely to process messages from our subscriptions."""
 
@@ -223,6 +225,10 @@ class Translator(object):
                     _LOGGER.error(
                         "Exception processing message from subscribed topic: %s",
                         message.topic, exc_info=True)
+
+            # Turn off is_connected flag before leaving
+            self._publish_baseunit_property(BaseUnit.PROP_IS_CONNECTED, False)
+            await asyncio.sleep(0)
         finally:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -276,19 +282,22 @@ class Translator(object):
         # When base unit event occurs, publish the event data
         # (don't bother retaining; events are time sensitive)
         event_data = json.dumps(contact_id.as_dict())
-        self._publish('{}/event'.format(self._config.translator.baseunit),
-                      event_data, False)
+        self._publish(
+            '{}/event'.format(self._config.translator.baseunit.topic),
+            event_data, False)
 
         # For clients that can't handle json, we will also provide the event
         # qualifier and code via these topics
         if contact_id.event_code:
             if contact_id.event_qualifier == EventQualifier.Event:
                 self._publish(
-                    '{}/event_code'.format(self._config.translator.baseunit),
+                    '{}/event_code'.format(
+                        self._config.translator.baseunit.topic),
                     contact_id.event_code, False)
             elif contact_id.event_qualifier == EventQualifier.Restore:
                 self._publish(
-                    '{}/restore_code'.format(self._config.translator.baseunit),
+                    '{}/restore_code'.format(
+                        self._config.translator.baseunit.topic),
                     contact_id.event_code, False)
 
         # This is just for Home Assistant; the 'alarm_control_panel.mqtt'
@@ -296,15 +305,24 @@ class Translator(object):
         if contact_id.event_qualifier == EventQualifier.Event and \
                 contact_id.event_category == EventCategory.Alarm:
             self._publish(
-                '{}/{}'.format(self._config.translator.baseunit,
+                '{}/{}'.format(self._config.translator.baseunit.topic,
                                Translator.TOPIC_HASTATE),
                 'triggered', True)
 
     def _baseunit_properties_changed(self, baseunit: BaseUnit,
                                      changes: List[PropertyChangedInfo]) -> None:
         # When base unit properties change, publish them
+        has_connected = False
         for change in changes:
             self._publish_baseunit_property(change.name, change.new_value)
+
+            # Also check if connection has just been established
+            if change.name == BaseUnit.PROP_IS_CONNECTED and change.new_value:
+                has_connected = True
+
+        # On connection, publish config for Home Assistant if needed
+        if has_connected:
+            self._publish_ha_config()
 
     def _baseunit_switch_state_changed(self, baseunit: BaseUnit,
                                        switch_number: SwitchNumber,
@@ -349,7 +367,7 @@ class Translator(object):
                     device_config.topic, device, change.name, change.new_value)
 
     def _publish_baseunit_property(self, name: str, value: Any) -> None:
-        topic_parent = self._config.translator.baseunit
+        topic_parent = self._config.translator.baseunit.topic
 
         # Base Unit topic holds the state
         if name == BaseUnit.PROP_STATE:
@@ -430,17 +448,71 @@ class Translator(object):
                 SpecialDevice.PROP_CONTROL_LOW_LIMIT}:
             self._publish('{}/{}'.format(topic_parent, name), value, True)
 
+    def _publish_ha_config(self):
+        # Skip if Home Assistant discovery disabled
+        if not self._config.translator.ha_discovery_prefix:
+            return
+
+        # Publish config for the base unit when enabled
+        if self._config.translator.baseunit.ha_name:
+            self._publish_ha_baseunit_config(self._config.translator.baseunit)
+
+        # Publish config for each device when enabled
+        for device_id in self._config.translator.devices.keys():
+            if self._shutdown:
+                return
+            device_config = self._config.translator.devices[device_id]
+            if device_config.ha_name:
+                device = self._baseunit.devices.get(device_id)
+                if device:
+                    self._publish_ha_device_config(device, device_config)
+
+        # Publish config for each switch when enabled
+        for switch_number in self._config.translator.switches.keys():
+            if self._shutdown:
+                return
+            switch_config = self._config.translator.switches[switch_number]
+            if switch_config.ha_name:
+                self._publish_ha_switch_config(switch_number, switch_config)
+
+    def _publish_ha_baseunit_config(self,
+                                    baseunit_config: TranslatorBaseUnitConfig):
+        # Generate message that can be used to automatically configure the
+        # alarm control panel in Home Assistant using MQTT Discovery
+        message = {
+            Translator.HA_NAME: baseunit_config.ha_name,
+            Translator.HA_UNIQUE_ID: '{}'.format(PROJECT_NAME),
+            Translator.HA_STATE_TOPIC: baseunit_config.topic,
+            Translator.HA_COMMAND_TOPIC: '{}/{}/{}'.format(
+                baseunit_config.topic, BaseUnit.PROP_OPERATION_MODE,
+                Translator.TOPIC_SET),
+            Translator.HA_PAYLOAD_DISARM: str(OperationMode.Disarm),
+            Translator.HA_PAYLOAD_ARM_HOME: str(OperationMode.Home),
+            Translator.HA_PAYLOAD_ARM_AWAY: str(OperationMode.Away),
+            Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
+                baseunit_config.topic, BaseUnit.PROP_IS_CONNECTED),
+            Translator.HA_PAYLOAD_AVAILABLE: str(True),
+            Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
+        }
+        self._publish(
+            '{}/{}/{}/config'.format(
+                self._config.translator.ha_discovery_prefix,
+                Translator.HA_PLATFORM_ALARM_CONTROL_PANEL,
+                message[Translator.HA_UNIQUE_ID]),
+            json.dumps(message), False)
+
     def _publish_ha_device_config(self, device: Device,
                                   device_config: TranslatorDeviceConfig):
         # Generate message that can be used to automatically configure the
-        # device in Home Assistant using it's MQTT Discovery functionality
+        # device in Home Assistant using MQTT Discovery
         message = {
             Translator.HA_NAME: device_config.ha_name,
             Translator.HA_UNIQUE_ID: '{}_{:06x}'.format(
                 PROJECT_NAME, device.device_id),
             Translator.HA_STATE_TOPIC: device_config.topic,
             Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
-                self._config.translator.baseunit, BaseUnit.PROP_IS_CONNECTED),
+                self._config.translator.baseunit.topic,
+                BaseUnit.PROP_IS_CONNECTED),
             Translator.HA_PAYLOAD_AVAILABLE: str(True),
             Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
         }
@@ -520,12 +592,12 @@ class Translator(object):
                 self._config.translator.ha_discovery_prefix,
                 ha_platform,
                 message[Translator.HA_UNIQUE_ID]),
-            json.dumps(message), True)
+            json.dumps(message), False)
 
     def _publish_ha_switch_config(self, switch_number: SwitchNumber,
                                   switch_config: TranslatorSwitchConfig):
         # Generate message that can be used to automatically configure the
-        # switch in Home Assistant using it's MQTT Discovery functionality
+        # switch in Home Assistant using MQTT Discovery
         message = {
             Translator.HA_NAME: switch_config.ha_name,
             Translator.HA_UNIQUE_ID: '{}_{}'.format(
@@ -536,7 +608,8 @@ class Translator(object):
             Translator.HA_PAYLOAD_ON: str(OnOff.On),
             Translator.HA_PAYLOAD_OFF: str(OnOff.Off),
             Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
-                self._config.translator.baseunit, BaseUnit.PROP_IS_CONNECTED),
+                self._config.translator.baseunit.topic,
+                BaseUnit.PROP_IS_CONNECTED),
             Translator.HA_PAYLOAD_AVAILABLE: str(True),
             Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
         }
@@ -545,7 +618,7 @@ class Translator(object):
                 self._config.translator.ha_discovery_prefix,
                 Translator.HA_PLATFORM_SWITCH,
                 message[Translator.HA_UNIQUE_ID]),
-            json.dumps(message), True)
+            json.dumps(message), False)
 
     def _publish(self, topic: str, message: Any, retain: bool) -> None:
         # Wrapper to start the async method
@@ -612,3 +685,12 @@ class Translator(object):
         self._loop.create_task(
             self._baseunit.async_set_switch_state(
                 switch_number, bool(state.value)))
+
+    def _on_ha_message(self, subscribetopic: SubscribeTopic,
+                       message: ApplicationMessage) -> None:
+        # When Home Assistant comes online, publish our configuration to it
+        payload = None if not message.data else message.data.decode()
+        if not payload:
+            return
+        if payload == self._config.translator.ha_birth_payload:
+            self._publish_ha_config()
