@@ -8,8 +8,8 @@ setup(
     version=mqtt_const.PROJECT_VERSION,
     packages=['lifesospy_mqtt'],
     install_requires=[
-        'lifesospy~=0.7.4',
-        'hbmqtt~=0.9.2',
+        'lifesospy~=0.10.0',
+        'hbmqtt~=0.9.3',
         'pyyaml~=3.13',
         'python-dateutil~=2.7.3',
         'python-daemon~=2.1.2'],
@@ -24,5 +24,8 @@ setup(
         'Programming Language :: Python',
         'Topic :: Home Automation',
         'Topic :: Software Development :: Libraries :: Python Modules'
-    ]
+    ],
+    entry_points={
+        'console_scripts': ['lifesospy_mqtt = lifesospy_mqtt.__main__:main']
+    },
 )
