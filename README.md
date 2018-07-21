@@ -1,6 +1,6 @@
 # LifeSOS MQTT Client
 
-[![PyPI version](https://badge.fury.io/py/lifesospy_mqtt.svg)](https://badge.fury.io/py/lifesospy_mqtt)
+[![PyPI version](https://badge.fury.io/py/lifesospy-mqtt.svg)](https://badge.fury.io/py/lifesospy-mqtt)
 
 This application provides an MQTT client that interfaces with
 [LifeSOS](http://lifesos.com.tw) alarm systems, sensors and switches.
