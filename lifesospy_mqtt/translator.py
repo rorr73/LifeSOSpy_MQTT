@@ -438,6 +438,10 @@ class Translator(object):
                     '{}/{}/{}'.format(topic_parent, name, item.name),
                     bool(value & item.value), True)
 
+        # Device ID; value should be formatted as hex
+        elif name == Device.PROP_DEVICE_ID:
+            self._publish('{}/{:06x}'.format(topic_parent, name), value, True)
+
         # Other supported properties in a topic using property name
         elif name in {
                 Device.PROP_DEVICE_ID, Device.PROP_ZONE, Device.PROP_TYPE,

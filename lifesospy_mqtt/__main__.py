@@ -34,7 +34,7 @@ def main():
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        prog="{} -m {}".format(os.path.split(sys.executable)[1], PROJECT_NAME))
+        prog="{}".format(PROJECT_NAME))
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         '-e', '--devices',
