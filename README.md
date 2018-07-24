@@ -468,10 +468,10 @@ trigger an alarm. When topic omitted or value is null, there is no limit.
 
 *Example*: A temperature sensor with a `high_limit` of `40` will trigger a `HighTemp` alarm when the reading hits `41`.
 
-**home/lounge/temperature/characteristics/Repeater** *Published*
-**home/lounge/temperature/characteristics/BaseUnit** *Published*
-**home/lounge/temperature/characteristics/TwoWay** *Published*
-**home/lounge/temperature/characteristics/Supervisory** *Published*
+**home/lounge/temperature/characteristics/Repeater** *Published*<br />
+**home/lounge/temperature/characteristics/BaseUnit** *Published*<br />
+**home/lounge/temperature/characteristics/TwoWay** *Published*<br />
+**home/lounge/temperature/characteristics/Supervisory** *Published*<br />
 **home/lounge/temperature/characteristics/RFVoice** *Published*
 
 Device characteristics. Each property is `True` or `False` depending on whether the
