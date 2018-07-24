@@ -445,7 +445,7 @@ Wireless signal strength, in dB. Value in range between `0` to `100`.
 
 **home/room/temp/rssi_bars** *Published*
 
-Wireless signal strength, in bars. Value in range between `0` and `4`.
+Wireless signal strength, for visual representation as bars. Value in range between `0` and `4`.
 
 **home/room/temp/type** *Published*
 
@@ -542,6 +542,26 @@ Name | Description
 `LowTriggered` | *TODO*
 `HighState` | *TODO*
 `LowState` | *TODO*
+
+**home/room/temp/event_code** *Published*
+
+Details for an event when it occurs on the device.
+
+Name | Description
+---- | -----------
+Button | When button on the device is pressed.
+Away | Away button on remote control / keypad.
+Disarm | Disarm button on remote control / keypad.
+Home | Home button on remote control / keypad.
+Heartbeat | Sent periodically by device to the base unit, so it knows the device is still functional.
+Reading | When a new reading has been taken by the `Special` devices.
+PowerOnReset | Device powered on; eg. inserted new batteries.
+BatteryLow | Device indicating the batteries are low and need to be replaced.
+Open | When a magnet sensor is opened.
+Close | When a magnet sensor is closed.
+Tamper | When the device enclosure is tampered with.
+Trigger | When a trigger-based device is activated.
+Panic | Panic button on remote control / keypad.
 
 #### Switch Topics
 
