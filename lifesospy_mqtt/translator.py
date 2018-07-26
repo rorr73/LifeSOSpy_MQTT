@@ -487,7 +487,8 @@ class Translator(object):
         message = {
             Translator.HA_NAME: baseunit_config.ha_name,
             Translator.HA_UNIQUE_ID: '{}'.format(PROJECT_NAME),
-            Translator.HA_STATE_TOPIC: baseunit_config.topic,
+            Translator.HA_STATE_TOPIC: '{}/{}'.format(
+                baseunit_config.topic, Translator.TOPIC_HASTATE),
             Translator.HA_COMMAND_TOPIC: '{}/{}/{}'.format(
                 baseunit_config.topic, BaseUnit.PROP_OPERATION_MODE,
                 Translator.TOPIC_SET),

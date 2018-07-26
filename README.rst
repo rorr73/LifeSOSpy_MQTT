@@ -14,25 +14,4 @@ work on the LS-10/LS-20 models. Note that in some markets, they may also
 be labelled under the name of the distributor; eg. SecurePro in
 Australia, WeBeHome in northern Europe.
 
-Requirements
-------------
-
--  A network-connected LifeSOS LS-30, LS-20 or LS-10 alarm system.
--  Something to run this application on. Assuming you want to leave it
-   running 24/7, a low-powered device like a Raspberry Pi or a NAS are
-   ideal.
--  `Python 3.5.3 or higher <https://www.python.org/downloads/>`__ must
-   be installed.
--  An MQTT broker to connect to; eg.
-   `Mosquitto <https://mosquitto.org/>`__
-
-Installation
-------------
-
-To install this application, run the following command:
-
-::
-
-   $ pip install lifesospy_mqtt
-
 Refer to the `LifeSOSpy_MQTT project <https://github.com/rorr73/LifeSOSpy_MQTT>`__ page for full details.
