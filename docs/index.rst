@@ -30,12 +30,6 @@ Requirements
 Installation
 ------------
 
-To install this application, run the following command:
-
-::
-
-   $ pip install lifesospy_mqtt
-
 Please refer to :doc:`quickstart` for help on getting started.
 
 .. _LifeSOS: http://lifesos.com.tw

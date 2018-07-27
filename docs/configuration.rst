@@ -4,6 +4,7 @@ Configuration
 All settings for this application's configuration file, ``config.yaml``, are listed below.
 
 .. _configuration_lifesos:
+
 LifeSOS settings
 ^^^^^^^^^^^^^^^^
 
@@ -50,6 +51,8 @@ Remaining settings are for either mode:
    configurable setting on newer models to require a password to issue
    commands over the network interface.
 
+.. _configuration_mqtt:
+
 MQTT settings
 ^^^^^^^^^^^^^
 
@@ -78,6 +81,8 @@ This section contains settings needed to connect to your MQTT broker.
    on secure connections;
    `reference <http://hbmqtt.readthedocs.io/en/latest/references/mqttclient.html#hbmqtt.client.MQTTClient.connect>`__.
 -  **client_id**: Name to identify this application to the MQTT broker.
+
+.. _configuration_translator:
 
 Translator settings
 ^^^^^^^^^^^^^^^^^^^
