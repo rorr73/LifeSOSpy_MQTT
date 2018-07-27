@@ -1,6 +1,12 @@
 LifeSOS MQTT Client
 ===================
 
+.. image:: https://badge.fury.io/py/lifesospy-mqtt.svg
+    :target: https://badge.fury.io/py/lifesospy-mqtt
+.. image:: https://readthedocs.org/projects/lifesospy-mqtt/badge/?version=latest
+    :target: http://lifesospy-mqtt.readthedocs.org/en/latest/?badge=latest
+    :alt: Documentation Status
+
 This application provides an MQTT client that interfaces with
 `LifeSOS <http://lifesos.com.tw>`__ alarm systems, sensors and switches.
 It will publish the state of all devices to an MQTT broker, which can
@@ -14,4 +20,4 @@ work on the LS-10/LS-20 models. Note that in some markets, they may also
 be labelled under the name of the distributor; eg. SecurePro in
 Australia, WeBeHome in northern Europe.
 
-Refer to the `LifeSOSpy_MQTT project <https://github.com/rorr73/LifeSOSpy_MQTT>`__ page for full details.
+For a quickstart and configuration help, please refer to the `ReadTheDocs <http://lifesospy-mqtt.readthedocs.io>`__ site.

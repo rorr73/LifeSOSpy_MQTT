@@ -1,6 +1,11 @@
 Changelog
 ---------
 
+0.10.5
+.....
+
+* Documentation moved out of README into `ReadTheDocs <http://lifesospy-mqtt.readthedocs.io>`__.
+
 0.10.4
 .....
 
