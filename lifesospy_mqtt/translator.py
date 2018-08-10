@@ -39,6 +39,7 @@ class Translator(object):
     HA_AVAILABILITY_TOPIC = 'availability_topic'
     HA_COMMAND_TOPIC = 'command_topic'
     HA_DEVICE_CLASS = 'device_class'
+    HA_ICON = 'icon'
     HA_NAME = 'name'
     HA_PAYLOAD_ARM_AWAY = 'payload_arm_away'
     HA_PAYLOAD_ARM_HOME = 'payload_arm_home'
@@ -64,6 +65,9 @@ class Translator(object):
     HA_DC_VIBRATION = 'vibration'
     HA_DC_WINDOW = 'window'
 
+    # Icons in Home Assistant
+    HA_ICON_RSSI = 'mdi:wifi'
+
     # Platforms in Home Assistant to represent our devices
     HA_PLATFORM_ALARM_CONTROL_PANEL = 'alarm_control_panel'
     HA_PLATFORM_BINARY_SENSOR = 'binary_sensor'
@@ -74,6 +78,7 @@ class Translator(object):
     HA_UOM_CURRENT = 'A'
     HA_UOM_HUMIDITY = '%'
     HA_UOM_ILLUMINANCE = 'Lux'
+    HA_UOM_RSSI = 'dB'
     HA_UOM_TEMPERATURE = '°C'
 
     # Ping MQTT broker this many seconds apart to check we're connected
@@ -270,8 +275,11 @@ class Translator(object):
                     device_config.topic, device, name, getattr(device, name))
 
         # When HA discovery is enabled, publish device configuration to it
-        if self._config.translator.ha_discovery_prefix and device_config.ha_name:
-            self._publish_ha_device_config(device, device_config)
+        if self._config.translator.ha_discovery_prefix:
+            if device_config.ha_name:
+                self._publish_ha_device_config(device, device_config)
+            if device_config.ha_name_rssi:
+                self._publish_ha_device_rssi_config(device, device_config)
 
     def _baseunit_device_deleted(self, baseunit: BaseUnit, device: Device) -> None: # pylint: disable=no-self-use
         # Remove callbacks from deleted device
@@ -467,10 +475,12 @@ class Translator(object):
             if self._shutdown:
                 return
             device_config = self._config.translator.devices[device_id]
-            if device_config.ha_name:
-                device = self._baseunit.devices.get(device_id)
-                if device:
+            device = self._baseunit.devices.get(device_id)
+            if device:
+                if device_config.ha_name:
                     self._publish_ha_device_config(device, device_config)
+                if device_config.ha_name_rssi:
+                    self._publish_ha_device_rssi_config(device, device_config)
 
         # Publish config for each switch when enabled
         for switch_number in self._config.translator.switches.keys():
@@ -597,6 +607,32 @@ class Translator(object):
             '{}/{}/{}/config'.format(
                 self._config.translator.ha_discovery_prefix,
                 ha_platform,
+                message[Translator.HA_UNIQUE_ID]),
+            json.dumps(message), False)
+
+    def _publish_ha_device_rssi_config(self, device: Device,
+                                       device_config: TranslatorDeviceConfig):
+        # Generate message that can be used to automatically configure a sensor
+        # for the device's RSSI in Home Assistant using MQTT Discovery
+        message = {
+            Translator.HA_NAME: device_config.ha_name_rssi,
+            Translator.HA_UNIQUE_ID: '{}_{:06x}_RSSI'.format(
+                PROJECT_NAME, device.device_id),
+            Translator.HA_ICON: Translator.HA_ICON_RSSI,
+            Translator.HA_STATE_TOPIC: '{}/{}'.format(
+                device_config.topic,
+                Device.PROP_RSSI_DB),
+            Translator.HA_UNIT_OF_MEASUREMENT: Translator.HA_UOM_RSSI,
+            Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
+                self._config.translator.baseunit.topic,
+                BaseUnit.PROP_IS_CONNECTED),
+            Translator.HA_PAYLOAD_AVAILABLE: str(True),
+            Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
+        }
+        self._publish(
+            '{}/{}/{}/config'.format(
+                self._config.translator.ha_discovery_prefix,
+                Translator.HA_PLATFORM_SENSOR,
                 message[Translator.HA_UNIQUE_ID]),
             json.dumps(message), False)
 

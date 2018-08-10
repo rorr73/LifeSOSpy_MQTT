@@ -20,10 +20,11 @@ CONF_CLIENT_ID = 'client_id'
 CONF_DEFAULT = 'default'
 CONF_DEVICE_ID = 'device_id'
 CONF_DEVICES = 'devices'
-CONF_HA_BIRTH_PAYLOAD ='ha_birth_payload'
+CONF_HA_BIRTH_PAYLOAD = 'ha_birth_payload'
 CONF_HA_BIRTH_TOPIC = 'ha_birth_topic'
 CONF_HA_DISCOVERY_PREFIX = 'ha_discovery_prefix'
 CONF_HA_NAME = 'ha_name'
+CONF_HA_NAME_RSSI = 'ha_name_rssi'
 CONF_HOST = 'host'
 CONF_NAMESPACES = 'namespaces'
 CONF_PASSWORD = 'password'
@@ -94,10 +95,12 @@ DEFAULT_CONFIG = """
     #- """ + CONF_DEVICE_ID + """: '345def'
     #  """ + CONF_TOPIC + """: home/front/door
     #  """ + CONF_HA_NAME + """: "Front Door"
+    #  """ + CONF_HA_NAME_RSSI + """: "Front Door RSSI"
     #- """ + CONF_DEVICE_ID + """: '123abc'
     #  """ + CONF_TOPIC + """: home/lounge/motion
     #  """ + CONF_AUTO_RESET_INTERVAL + """: 180
     #  """ + CONF_HA_NAME + """: "Lounge Motion"
+    #  """ + CONF_HA_NAME_RSSI + """: "Lounge Motion RSSI"
   
   # Uncomment any switches you own and provide a topic
   """ + CONF_SWITCHES + """:
@@ -408,6 +411,7 @@ class TranslatorDeviceConfig(object):
         self._topic = settings[CONF_TOPIC]
         self._auto_reset_interval = settings.get(CONF_AUTO_RESET_INTERVAL)
         self._ha_name = settings.get(CONF_HA_NAME)
+        self._ha_name_rssi = settings.get(CONF_HA_NAME_RSSI)
 
     @property
     def auto_reset_interval(self) -> int:
@@ -420,16 +424,22 @@ class TranslatorDeviceConfig(object):
         return self._ha_name
 
     @property
+    def ha_name_rssi(self) -> str:
+        """Name to assign the device's signal strength in Home Assistant."""
+        return self._ha_name_rssi
+
+    @property
     def topic(self) -> str:
         """Topic for the device."""
         return self._topic
 
     def __repr__(self):
-        return "<{}: topic={}, auto_reset_interval={}, ha_name={}>".format(
+        return "<{}: topic={}, auto_reset_interval={}, ha_name={}, ha_name_rssi={}>".format(
             self.__class__.__name__,
             self._topic,
             self._auto_reset_interval,
             self._ha_name,
+            self._ha_name_rssi,
         )
 
 
