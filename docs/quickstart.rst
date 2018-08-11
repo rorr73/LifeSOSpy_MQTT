@@ -1,8 +1,8 @@
 Quickstart
--------------
+==========
 
 Step 1 - Installing the application
-^^^^^^^^^^^^^^^^
+-----------------------------------
 
 To install, run the following command:
 
@@ -11,7 +11,7 @@ To install, run the following command:
    pip install lifesospy_mqtt
 
 Step 2 - Generate a configuration file
-^^^^^^^^^^^^^^^^
+--------------------------------------
 
 After installation of the application (and dependencies) has completed,
 you will be able to start the application using the ``lifesospy_mqtt``
@@ -36,13 +36,13 @@ configuration file and exit.
     using command line arguments if desired.
 
 Step 3 - Configure connection to your LifeSOS system
-^^^^^^^^^^^^^^^^
+----------------------------------------------------
 
 Open up the new config file. For now, just fill out the settings in the
 :ref:`LifeSOS <configuration_lifesos>` and :ref:`MQTT <configuration_mqtt>` sections.
 
 Step 4 - Test connection and get list of devices
-^^^^^^^^^^^^^^^^
+------------------------------------------------
 
 Run ``lifesospy_mqtt -e`` to list all devices enrolled on your base unit. This will
 also verify the application is able to connect to your LifeSOS system successfully.
@@ -64,7 +64,7 @@ also verify the application is able to connect to your LifeSOS system successful
    9 devices were found.
 
 Step 5 - Set up devices and topics
-^^^^^^^^^^^^^^^^
+----------------------------------
 
 Now that we know your LifeSOS settings are correct, go ahead and fill in
 :ref:`Translator Settings <configuration_translator>` section of your config file.
@@ -80,7 +80,7 @@ with a ``switch number`` (value between 1 and 16) and specify a meaningful
 specify a ``ha_name``, which is how the switch will be labelled in the UI.
 
 Step 6 - Run the application
-^^^^^^^^^^^^^^^^
+----------------------------
 
 Go ahead and start the application by running ``lifesospy_mqtt``.
 
@@ -105,7 +105,7 @@ published, similar to below:
    home/alarm/entry_delay 15
 
 Step 7 - Run as a daemon (Optional)
-^^^^^^^^^^^^^^^^
+-----------------------------------
 
 When you're happy that everything is working correctly, this application
 can be set up to run as a daemon, to be run continuously in the background.

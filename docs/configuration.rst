@@ -1,12 +1,12 @@
 Configuration
--------------
+=============
 
 All settings for this application's configuration file, ``config.yaml``, are listed below.
 
 .. _configuration_lifesos:
 
 LifeSOS settings
-^^^^^^^^^^^^^^^^
+----------------
 
 This section contains settings needed to interface with the LifeSOS base
 unit / ethernet adapter.
@@ -54,7 +54,7 @@ Remaining settings are for either mode:
 .. _configuration_mqtt:
 
 MQTT settings
-^^^^^^^^^^^^^
+-------------
 
 This section contains settings needed to connect to your MQTT broker.
 
@@ -85,7 +85,7 @@ This section contains settings needed to connect to your MQTT broker.
 .. _configuration_translator:
 
 Translator settings
-^^^^^^^^^^^^^^^^^^^
+-------------------
 
 This section contains settings used by the component responsible for
 translating between the MQTT client and the LifeSOS ethernet adapter.
@@ -129,13 +129,13 @@ translating between the MQTT client and the LifeSOS ethernet adapter.
        #  ha_name: "Lounge Heater"
 
 Base Unit settings
-''''''''''''''''''
+^^^^^^^^^^^^^^^^^^
 
 -  **topic**: The topic name for the base unit (alarm panel). Refer to
    the Topic section for more detail.
 
 Device settings
-'''''''''''''''
+^^^^^^^^^^^^^^^
 
 Each enrolled device must have an entry here to link the unique device
 identifier with a topic name. To determine the device identifier for
@@ -170,7 +170,7 @@ each device on your LifeSOS system, run ``lifesospy_mqtt -e``.
    30 seconds when no value specified.
 
 Switch settings
-'''''''''''''''
+^^^^^^^^^^^^^^^
 
 Each switch you own must have an entry here to link the switch number
 with a topic name.
@@ -181,7 +181,7 @@ with a topic name.
    for more detail.
 
 Home Assistant settings
-'''''''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Settings prefixed with ``ha_`` are for `Home
 Assistant <https://www.home-assistant.io/>`__ support; specifically,
@@ -206,7 +206,7 @@ Assistant, these settings can either be ignored or removed.
    for the sensor.
 
 Logger settings
-^^^^^^^^^^^^^^^
+---------------
 
 This section contains settings to configure application logging.
 

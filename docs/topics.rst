@@ -1,5 +1,5 @@
 Topics
-------
+======
 
 The topics published and subscribed to by this MQTT client are listed
 below. In all cases, the parent topic name can be configured; the
@@ -9,7 +9,7 @@ For maximum compatibility with other MQTT clients, all payloads are
 plain text.
 
 Base Unit Topics
-^^^^^^^^^^^^^^^^
+----------------
 
 **home/alarm** *Published*
 
@@ -162,7 +162,7 @@ the MQTT client.
 *Payload Example*: ``ACPowerLoss``
 
 Device Topics
-^^^^^^^^^^^^^
+-------------
 
 **home/room/temp** *Published*
 
@@ -432,7 +432,7 @@ Details for an event when it occurs on the device.
 +--------------------+--------------------------------------------------+
 
 Switch Topics
-^^^^^^^^^^^^^
+-------------
 
 | **home/room/switch** *Published*
 | **home/room/switch/set** *Subscribed*
