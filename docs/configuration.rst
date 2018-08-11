@@ -120,6 +120,7 @@ translating between the MQTT client and the LifeSOS ethernet adapter.
        #  topic: home/lounge/motion
        #  auto_reset_interval: 180
        #  ha_name: "Lounge Motion"
+       #  ha_name_rssi: "Lounge Motion RSSI"
 
      # Uncomment any switches you own and provide a topic
      switches:
@@ -199,6 +200,10 @@ Assistant, these settings can either be ignored or removed.
 -  **ha_name**: When this setting is listed under the device, it’s
    configuration will be exported to Home Assistant and the value will
    be used as the display name for the device.
+-  **ha_name_rssi**: When this setting is listed under the device, the
+   configuration needed to monitor the signal strength will be exported
+   to Home Assistant, and the value will be used as the display name
+   for the sensor.
 
 Logger settings
 ^^^^^^^^^^^^^^^
