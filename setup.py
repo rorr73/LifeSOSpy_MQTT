@@ -17,7 +17,7 @@ setup(
     packages=['lifesospy_mqtt'],
     install_requires=[
         'janus~=0.4.0',
-        'lifesospy~=0.10.0',
+        'lifesospy~=0.10.1',
         'paho-mqtt~=1.4.0',
         'pyyaml>=4.2b1',
         'python-dateutil>=2.7.5',
