@@ -5,17 +5,16 @@ Configuration settings.
 import logging
 import os
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse, ParseResult
 import yaml
 from lifesospy.enums import SwitchNumber
+from lifesospy_mqtt.const import SCHEME_MQTT, SCHEME_MQTTS
 from lifesospy_mqtt.enums import LoggerLevel
 
 _LOGGER = logging.getLogger(__name__)
 
 CONF_AUTO_RESET_INTERVAL = 'auto_reset_interval'
 CONF_BASEUNIT = 'baseunit'
-CONF_CADATA = 'cadata'
-CONF_CAFILE = 'cafile'
-CONF_CAPATH = 'capath'
 CONF_CLIENT_ID = 'client_id'
 CONF_DEFAULT = 'default'
 CONF_DEVICE_ID = 'device_id'
@@ -59,11 +58,6 @@ DEFAULT_CONFIG = """
   # URI providing the details needed to connect to the MQTT broker
   # Refer https://github.com/mqtt/mqtt.github.io/wiki/URI-Scheme
   """ + CONF_URI + """: mqtt://username:password@127.0.0.1:1883
-  
-  # Server certificate authority file/path/data; only for secured connection (mqtts/wss)
-  #""" + CONF_CAFILE + """: /some/certfile
-  #""" + CONF_CAPATH + """: /some/folder
-  #""" + CONF_CADATA + """:
   
   # Unique client identifier; no need to change unless running multiple instances
   """ + CONF_CLIENT_ID + """: lifesos
@@ -146,8 +140,9 @@ DEFAULT_CONFIG = """
   """ + CONF_DEFAULT + """: """ + str(DEFAULT_LOGGERLEVEL).lower() + """
   
   #""" + CONF_NAMESPACES + """:
-  #  lifesos: """ + str(LoggerLevel.Debug).lower() + """
-  #  hbmqtt: """ + str(LoggerLevel.Debug).lower() + """
+  #  lifesospy: """ + str(LoggerLevel.Debug).lower() + """
+  #  lifesospy_mqtt: """ + str(LoggerLevel.Debug).lower() + """
+  #  paho.mqtt: """ + str(LoggerLevel.Debug).lower() + """
 """
 
 
@@ -271,26 +266,13 @@ class MQTTConfig(object):
     """Configuration settings for the MQTT client."""
 
     def __init__(self, settings: Dict[str, Any]):
-        self._uri = settings[CONF_URI]
-        self._cafile = settings.get(CONF_CAFILE)
-        self._capath = settings.get(CONF_CAPATH)
-        self._cadata = settings.get(CONF_CADATA)
+        self._uri = urlparse(settings[CONF_URI])
         self._client_id = settings[CONF_CLIENT_ID]
 
-    @property
-    def cadata(self) -> str:
-        """Server certificate authority data."""
-        return self._cadata
-
-    @property
-    def cafile(self) -> str:
-        """Server certificate authority file."""
-        return self._cafile
-
-    @property
-    def capath(self) -> str:
-        """Server certificate authority path."""
-        return self._capath
+        # Check URI specifies a supported scheme
+        if not (self._uri.scheme == SCHEME_MQTT or self._uri.scheme == SCHEME_MQTTS):
+            raise ValueError(
+                "URI scheme '{}' is not supported".format(self._uri.scheme))
 
     @property
     def client_id(self) -> str:
@@ -298,7 +280,7 @@ class MQTTConfig(object):
         return self._client_id
 
     @property
-    def uri(self) -> str:
+    def uri(self) -> ParseResult:
         """URI providing the details needed to connect to the MQTT broker."""
         return self._uri
 

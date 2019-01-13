@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.11.0
+------
+
+- Changed the underlying MQTT client library from HBMQTT to Eclipse Paho, to reduce failures when reconnecting.
+- Updated other dependent libraries.
+
 0.10.6
 ------
 

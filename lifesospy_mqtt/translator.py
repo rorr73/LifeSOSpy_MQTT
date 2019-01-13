@@ -3,14 +3,13 @@ This module contains the Translator class.
 """
 
 import asyncio
+from datetime import datetime
 import json
 import logging
 import signal
-import sys
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 import dateutil
-from hbmqtt.client import MQTTClient, QOS_1
-from hbmqtt.session import ApplicationMessage
+from janus import Queue
 from lifesospy.baseunit import BaseUnit
 from lifesospy.contactid import ContactID
 from lifesospy.device import Device, SpecialDevice
@@ -19,10 +18,13 @@ from lifesospy.enums import (
     OperationMode, BaseUnitState, ContactIDEventQualifier as EventQualifier,
     ContactIDEventCategory as EventCategory, DeviceType)
 from lifesospy.propertychangedinfo import PropertyChangedInfo
+from paho.mqtt.client import (
+    Client as MQTTClient, MQTTMessage, CONNACK_ACCEPTED,
+    connack_string, MQTT_ERR_SUCCESS)
 from lifesospy_mqtt.config import (
     Config, TranslatorBaseUnitConfig, TranslatorDeviceConfig,
     TranslatorSwitchConfig)
-from lifesospy_mqtt.const import PROJECT_NAME
+from lifesospy_mqtt.const import PROJECT_NAME, QOS_1, SCHEME_MQTTS
 from lifesospy_mqtt.enums import OnOff, OpenClosed
 from lifesospy_mqtt.subscribetopic import SubscribeTopic
 
@@ -85,7 +87,9 @@ class Translator(object):
     KEEP_ALIVE = 30
 
     # Attempt reconnection this many seconds apart
-    RECONNECT_INTERVAL = 30
+    # (starts at min, doubles on retry until max reached)
+    RECONNECT_MAX_DELAY = 120
+    RECONNECT_MIN_DELAY = 15
 
     # Sub-topic to clear the alarm/warning LEDs on base unit and stop siren
     TOPIC_CLEAR_STATUS = 'clear_status'
@@ -103,6 +107,7 @@ class Translator(object):
         self._config = config
         self._loop = asyncio.get_event_loop()
         self._shutdown = False
+        self._get_task = None
         self._auto_reset_handles = {}
 
         # Create LifeSOS base unit instance and attach callbacks
@@ -120,20 +125,30 @@ class Translator(object):
         # Create MQTT client instance
         self._mqtt = MQTTClient(
             client_id=self._config.mqtt.client_id,
-            config={
-                'keep_alive': Translator.KEEP_ALIVE,
-                'reconnect_retries': sys.maxsize,
-                'reconnect_max_interval': Translator.RECONNECT_INTERVAL,
-                'default_qos': QOS_1,
-                'will': {
-                    'topic': '{}/{}'.format(
-                        self._config.translator.baseunit.topic,
-                        BaseUnit.PROP_IS_CONNECTED),
-                    'message': str(False).encode(),
-                    'qos': QOS_1,
-                    'retain': True,
-                },
-            })
+            clean_session=False)
+        self._mqtt.enable_logger()
+        self._mqtt.will_set(
+            '{}/{}'.format(
+                self._config.translator.baseunit.topic,
+                BaseUnit.PROP_IS_CONNECTED),
+            str(False).encode(),
+            QOS_1,
+            True)
+        self._mqtt.reconnect_delay_set(
+            Translator.RECONNECT_MIN_DELAY,
+            Translator.RECONNECT_MAX_DELAY)
+        if self._config.mqtt.uri.username:
+            self._mqtt.username_pw_set(
+                self._config.mqtt.uri.username,
+                self._config.mqtt.uri.password)
+        if self._config.mqtt.uri.scheme == SCHEME_MQTTS:
+            self._mqtt.tls_set()
+        self._mqtt.on_connect = self._mqtt_on_connect
+        self._mqtt.on_disconnect = self._mqtt_on_disconnect
+        self._mqtt.on_message = self._mqtt_on_message
+        self._mqtt_was_connected = False
+        self._mqtt_last_connection = None
+        self._mqtt_last_disconnection = None
 
         # Generate a list of topics we'll need to subscribe to
         self._subscribetopics = []
@@ -179,6 +194,9 @@ class Translator(object):
         self._subscribetopics_lookup = \
             {st.topic: st for st in self._subscribetopics}
 
+        # Create queue to store pending messages from our subscribed topics
+        self._pending_messages = Queue()
+
     #
     # METHODS - Public
     #
@@ -192,16 +210,19 @@ class Translator(object):
         self._baseunit.start()
 
         # Connect to the MQTT broker
-        await self._mqtt.connect(
-            uri=self._config.mqtt.uri,
-            cleansession=False,
-            cafile=self._config.mqtt.cafile,
-            capath=self._config.mqtt.capath,
-            cadata=self._config.mqtt.cadata,
-        )
+        self._mqtt_was_connected = False
+        if self._config.mqtt.uri.port:
+            self._mqtt.connect_async(
+                self._config.mqtt.uri.hostname,
+                self._config.mqtt.uri.port,
+                keepalive=Translator.KEEP_ALIVE)
+        else:
+            self._mqtt.connect_async(
+                self._config.mqtt.uri.hostname,
+                keepalive=Translator.KEEP_ALIVE)
 
-        # Subscribe to topics we are capable of actioning
-        await self._mqtt.subscribe(self._subscribetopics)
+        # Start processing MQTT messages
+        self._mqtt.loop_start()
 
     async def async_loop(self) -> None:
         """Loop indefinitely to process messages from our subscriptions."""
@@ -211,9 +232,11 @@ class Translator(object):
         try:
             while not self._shutdown:
                 # Wait for next message
+                self._get_task = self._loop.create_task(
+                    self._pending_messages.async_q.get())
                 try:
-                    message = await self._mqtt.deliver_message(timeout=1)
-                except asyncio.TimeoutError:
+                    message = await self._get_task
+                except asyncio.CancelledError:
                     continue
                 except Exception: # pylint: disable=broad-except
                     # Log any exception but keep going
@@ -221,6 +244,8 @@ class Translator(object):
                         "Exception waiting for message to be delivered",
                         exc_info=True)
                     continue
+                finally:
+                    self._get_task = None
 
                 # Do subscribed topic callback to handle message
                 try:
@@ -230,6 +255,8 @@ class Translator(object):
                     _LOGGER.error(
                         "Exception processing message from subscribed topic: %s",
                         message.topic, exc_info=True)
+                finally:
+                    self._pending_messages.async_q.task_done()
 
             # Turn off is_connected flag before leaving
             self._publish_baseunit_property(BaseUnit.PROP_IS_CONNECTED, False)
@@ -248,18 +275,58 @@ class Translator(object):
             item[1].cancel()
             self._auto_reset_handles.pop(item[0])
 
+        # Stop processing MQTT messages
+        self._mqtt.loop_stop()
+
         # Disconnect from the MQTT broker
-        await self._mqtt.disconnect()
+        self._mqtt.disconnect()
 
     def signal_shutdown(self, sig, frame):
         """Flag shutdown when signal received."""
         _LOGGER.debug('%s received; shutting down...',
                       signal.Signals(sig).name) # pylint: disable=no-member
         self._shutdown = True
+        if self._get_task:
+            self._get_task.cancel()
 
     #
     # METHODS - Private / Internal
     #
+
+    def _mqtt_on_connect(self, client: MQTTClient, userdata: Any,
+                         flags: Dict[str, Any], result_code: int) -> None:
+        # On error, log it and don't go any further; client will retry
+        if result_code != CONNACK_ACCEPTED:
+            _LOGGER.warning(connack_string(result_code)) # pylint: disable=no-member
+            return
+
+        # Successfully connected
+        self._mqtt_last_connection = datetime.now()
+        if not self._mqtt_was_connected:
+            _LOGGER.debug("MQTT client connected to broker")
+            self._mqtt_was_connected = True
+        else:
+            try:
+                outage = self._mqtt_last_connection - self._mqtt_last_disconnection
+                _LOGGER.warning("MQTT client reconnected to broker. "
+                                "Outage duration was %s", str(outage))
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.warning("MQTT client reconnected to broker")
+
+        # Subscribe to topics we are capable of actioning
+        for subscribetopic in self._subscribetopics:
+            self._mqtt.subscribe(subscribetopic.topic, subscribetopic.qos)
+
+    def _mqtt_on_disconnect(self, client: MQTTClient, userdata: Any, result_code: int) -> None:
+        # When disconnected from broker and we didn't initiate it...
+        if result_code != MQTT_ERR_SUCCESS:
+            _LOGGER.warning("MQTT client lost connection to broker (RC: %i). "
+                            "Will attempt to reconnect periodically", result_code)
+            self._mqtt_last_disconnection = datetime.now()
+
+    def _mqtt_on_message(self, client: MQTTClient, userdata: Any, message: MQTTMessage):
+        # Add message to our queue, to be processed on main thread
+        self._pending_messages.sync_q.put_nowait(message)
 
     def _baseunit_device_added(self, baseunit: BaseUnit, device: Device) -> None:
         # Hook up callbacks for device that was added / discovered
@@ -662,32 +729,15 @@ class Translator(object):
                 message[Translator.HA_UNIQUE_ID]),
             json.dumps(message), False)
 
-    def _publish(self, topic: str, message: Any, retain: bool) -> None:
-        # Wrapper to start the async method
-        coro = self._async_publish(topic, message, retain)
-        self._loop.create_task(coro)
-
-    async def _async_publish(self, topic: str, message: Any, retain: bool) -> None:
-        # Replace null with empty string; HBMQTT doesn't like it
-        if message is None:
-            message = ''
-
-        # Convert to bytearray when needed
-        if not isinstance(message, bytearray):
-            # Convert to string first, if not already
-            message = str(message)
-
-            # Convert string to UTF-8 bytearray
-            message = message.encode()
-
-        await self._mqtt.publish(topic, message, retain=retain)
+    def _publish(self, topic: str, payload: Any, retain: bool) -> None:
+        self._mqtt.publish(topic, payload, QOS_1, retain)
 
     def _on_message_baseunit(self,
                              subscribetopic: SubscribeTopic,
-                             message: ApplicationMessage) -> None:
+                             message: MQTTMessage) -> None:
         if subscribetopic.args == BaseUnit.PROP_OPERATION_MODE:
             # Set operation mode
-            name = None if not message.data else message.data.decode()
+            name = None if not message.payload else message.payload.decode()
             operation_mode = OperationMode.parse_name(name)
             if operation_mode is None:
                 _LOGGER.warning("Cannot set operation_mode to '%s'", name)
@@ -699,16 +749,16 @@ class Translator(object):
 
     def _on_message_clear_status(self,
                                  subscribetopic: SubscribeTopic,
-                                 message: ApplicationMessage) -> None:
+                                 message: MQTTMessage) -> None:
         # Clear the alarm/warning LEDs on base unit and stop siren
         self._loop.create_task(
             self._baseunit.async_clear_status())
 
     def _on_message_set_datetime(self,
                                  subscribetopic: SubscribeTopic,
-                                 message: ApplicationMessage) -> None:
+                                 message: MQTTMessage) -> None:
         # Set remote date/time to specified date/time (or current if None)
-        value = None if not message.data else message.data.decode()
+        value = None if not message.payload else message.payload.decode()
         if value:
             value = dateutil.parser.parse(value)
         self._loop.create_task(
@@ -716,10 +766,10 @@ class Translator(object):
 
     def _on_message_switch(self,
                            subscribetopic: SubscribeTopic,
-                           message: ApplicationMessage) -> None:
+                           message: MQTTMessage) -> None:
         # Turn a switch on / off
         switch_number = subscribetopic.args
-        name = None if not message.data else message.data.decode()
+        name = None if not message.payload else message.payload.decode()
         state = OnOff.parse_name(name)
         if state is None:
             _LOGGER.warning("Cannot set switch %s to '%s'", switch_number, name)
@@ -729,9 +779,9 @@ class Translator(object):
                 switch_number, bool(state.value)))
 
     def _on_ha_message(self, subscribetopic: SubscribeTopic,
-                       message: ApplicationMessage) -> None:
+                       message: MQTTMessage) -> None:
         # When Home Assistant comes online, publish our configuration to it
-        payload = None if not message.data else message.data.decode()
+        payload = None if not message.payload else message.payload.decode()
         if not payload:
             return
         if payload == self._config.translator.ha_birth_payload:

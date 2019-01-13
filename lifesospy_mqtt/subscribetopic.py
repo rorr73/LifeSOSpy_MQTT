@@ -3,8 +3,8 @@ This module contains the SubscribeTopic class.
 """
 
 from typing import Any, Callable
-from hbmqtt.client import QOS_1
-from hbmqtt.session import ApplicationMessage
+from paho.mqtt.client import MQTTMessage
+from lifesospy_mqtt.const import QOS_1
 
 
 class SubscribeTopic(object):
@@ -12,7 +12,7 @@ class SubscribeTopic(object):
 
     def __init__(self,
                  topic: str,
-                 on_message: Callable[['SubscribeTopic', ApplicationMessage], None],
+                 on_message: Callable[['SubscribeTopic', MQTTMessage], None],
                  args: Any = None,
                  qos: int = QOS_1):
         self._topic = topic
@@ -36,17 +36,9 @@ class SubscribeTopic(object):
         return self._topic
 
     @property
-    def on_message(self) -> Callable[['SubscribeTopic', ApplicationMessage], None]:
+    def on_message(self) -> Callable[['SubscribeTopic', MQTTMessage], None]:
         """Called when a message is received."""
         return self._on_message
-
-    def __getitem__(self, index: int) -> Any:
-        """Simulates tuple-like response for HBMQTT's subscribe method."""
-        if index == 0:
-            return self._topic
-        elif index == 1:
-            return self._qos
-        raise NotImplementedError
 
     def __repr__(self):
         return "<{}: topic={}, qos={}>".format(

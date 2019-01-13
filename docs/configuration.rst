@@ -67,19 +67,11 @@ This section contains settings needed to connect to your MQTT broker.
      # Refer https://github.com/mqtt/mqtt.github.io/wiki/URI-Scheme
      uri: mqtt://username:password@127.0.0.1:1883
 
-     # Server certificate authority file/path/data; only for secured connection (mqtts/wss)
-     #cafile: /some/certfile
-     #capath: /some/folder
-     #cadata:
-
      # Unique client identifier; no need to change unless running multiple instances
      client_id: lifesos
 
 -  **uri**: Provides the protocol, host name / IP address and port for
    the MQTT broker, and a username/password for login (if required).
--  **cafile**, **capath**, **cadata**: Optional settings used by HBMQTT
-   on secure connections;
-   `reference <http://hbmqtt.readthedocs.io/en/latest/references/mqttclient.html#hbmqtt.client.MQTTClient.connect>`__.
 -  **client_id**: Name to identify this application to the MQTT broker.
 
 .. _configuration_translator:
@@ -220,12 +212,14 @@ This section contains settings to configure application logging.
      default: info
 
      #namespaces:
-     #  lifesos: debug
-     #  hbmqtt: debug
+     #  lifesospy: debug
+     #  lifesospy_mqtt: debug
+     #  paho.mqtt: debug
 
 -  **default**: The default minimum severity level to log.
--  **lifesos**: Minimum severity level for any log entries generated
-   directly from this application or the associated
-   `LifeSOSpy <https://github.com/rorr73/LifeSOSpy>`__ library.
--  **hbmqtt**: Minimum severity level for any log entries generated from
-   the `HBMQTT <https://github.com/beerfactory/hbmqtt>`__ library.
+-  **lifesospy_mqtt**: Minimum severity level for any log entries generated
+   directly from this application.
+-  **lifesospy**: Minimum severity level for any log entries generated
+   from the `LifeSOSpy <https://github.com/rorr73/LifeSOSpy>`__ library.
+-  **paho.mqtt**: Minimum severity level for any log entries generated from
+   the `Eclipse Paho MQTT <https://www.eclipse.org/paho/>`__ library.
