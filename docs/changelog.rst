@@ -6,6 +6,7 @@ Changelog
 
 - Changed the underlying MQTT client library from HBMQTT to Eclipse Paho, to reduce failures when reconnecting.
 - Updated other dependent libraries.
+- When a device is discovered that was not listed in the configuration file, log as warning and include device details.
 
 0.10.6
 ------

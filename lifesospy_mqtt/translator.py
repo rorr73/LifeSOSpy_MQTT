@@ -333,9 +333,15 @@ class Translator(object):
         device.on_event = self._device_on_event
         device.on_properties_changed = self._device_on_properties_changed
 
-        # Publish initial property values for device
+        # Get configuration settings for device; don't go any further when
+        # device is not included in the config
         device_config = self._config.translator.devices.get(device.device_id)
-        if device_config and device_config.topic:
+        if not device_config:
+            _LOGGER.warning("Ignoring device as it was not listed in the config file: %s", device)
+            return
+
+        # Publish initial property values for device
+        if device_config.topic:
             props = device.as_dict()
             for name in props.keys():
                 self._publish_device_property(
