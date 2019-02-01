@@ -313,6 +313,15 @@ class Translator(object):
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.warning("MQTT client reconnected to broker")
 
+        # Republish the 'is_connected' state; this will have automatically
+        # been set to False on MQTT client disconnection due to our will
+        # (even though this app might still be connected to the LifeSOS unit)
+        self._publish('{}/{}'.format(
+            self._config.translator.baseunit.topic,
+            BaseUnit.PROP_IS_CONNECTED),
+            self._baseunit.is_connected,
+            True)
+
         # Subscribe to topics we are capable of actioning
         for subscribetopic in self._subscribetopics:
             self._mqtt.subscribe(subscribetopic.topic, subscribetopic.qos)

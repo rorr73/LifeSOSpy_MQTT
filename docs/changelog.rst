@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.11.1
+------
+
+- Fix issue where devices shown as Unavailable in Home Assistant when MQTT connection is lost and subsequently reconnected.
+
 0.11.0
 ------
 
