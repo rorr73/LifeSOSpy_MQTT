@@ -76,7 +76,14 @@ class Translator(object):
     HA_PLATFORM_SENSOR = 'sensor'
     HA_PLATFORM_SWITCH = 'switch'
 
-    # Unit of measurement for Home Assistant sensors
+    # Alarm states in Home Assistant
+    HA_STATE_ARMED_AWAY = 'armed_away'
+    HA_STATE_ARMED_HOME = 'armed_home'
+    HA_STATE_DISARMED = 'disarmed'
+    HA_STATE_PENDING = 'pending'
+    HA_STATE_TRIGGERED = 'triggered'
+
+# Unit of measurement for Home Assistant sensors
     HA_UOM_CURRENT = 'A'
     HA_UOM_HUMIDITY = '%'
     HA_UOM_ILLUMINANCE = 'Lux'
@@ -109,6 +116,8 @@ class Translator(object):
         self._shutdown = False
         self._get_task = None
         self._auto_reset_handles = {}
+        self._state = None
+        self._ha_state = None
 
         # Create LifeSOS base unit instance and attach callbacks
         self._baseunit = BaseUnit(
@@ -316,9 +325,10 @@ class Translator(object):
         # Republish the 'is_connected' state; this will have automatically
         # been set to False on MQTT client disconnection due to our will
         # (even though this app might still be connected to the LifeSOS unit)
-        self._publish('{}/{}'.format(
-            self._config.translator.baseunit.topic,
-            BaseUnit.PROP_IS_CONNECTED),
+        self._publish(
+            '{}/{}'.format(
+                self._config.translator.baseunit.topic,
+                BaseUnit.PROP_IS_CONNECTED),
             self._baseunit.is_connected,
             True)
 
@@ -394,10 +404,11 @@ class Translator(object):
         # component currently requires these hard-coded state values
         if contact_id.event_qualifier == EventQualifier.Event and \
                 contact_id.event_category == EventCategory.Alarm:
+            self._ha_state = Translator.HA_STATE_TRIGGERED
             self._publish(
                 '{}/{}'.format(self._config.translator.baseunit.topic,
                                Translator.TOPIC_HASTATE),
-                'triggered', True)
+                self._ha_state, True)
 
     def _baseunit_properties_changed(self, baseunit: BaseUnit,
                                      changes: List[PropertyChangedInfo]) -> None:
@@ -461,20 +472,25 @@ class Translator(object):
 
         # Base Unit topic holds the state
         if name == BaseUnit.PROP_STATE:
+            self._state = value
             self._publish(topic_parent, value, True)
 
             # This is just for Home Assistant; the 'alarm_control_panel.mqtt'
             # component currently requires these hard-coded state values
             topic = '{}/{}'.format(topic_parent, Translator.TOPIC_HASTATE)
             if value in {BaseUnitState.Disarm, BaseUnitState.Monitor}:
-                self._publish(topic, 'disarmed', True)
+                self._ha_state = Translator.HA_STATE_DISARMED
+                self._publish(topic, self._ha_state, True)
             elif value == BaseUnitState.Home:
-                self._publish(topic, 'armed_home', True)
+                self._ha_state = Translator.HA_STATE_ARMED_HOME
+                self._publish(topic, self._ha_state, True)
             elif value == BaseUnitState.Away:
-                self._publish(topic, 'armed_away', True)
+                self._ha_state = Translator.HA_STATE_ARMED_AWAY
+                self._publish(topic, self._ha_state, True)
             elif value in {BaseUnitState.AwayExitDelay,
                            BaseUnitState.AwayEntryDelay}:
-                self._publish(topic, 'pending', True)
+                self._ha_state = Translator.HA_STATE_PENDING
+                self._publish(topic, self._ha_state, True)
 
         # Other supported properties in a topic using property name
         elif name in {
@@ -757,6 +773,20 @@ class Translator(object):
             if operation_mode is None:
                 _LOGGER.warning("Cannot set operation_mode to '%s'", name)
                 return
+            if operation_mode == OperationMode.Disarm and \
+                    self._state == BaseUnitState.Disarm and \
+                    self._ha_state == Translator.HA_STATE_TRIGGERED:
+                # Special case to ensure HA can return from triggered state
+                # when triggered by an alarm in Disarm mode (eg. panic,
+                # tamper)... the set disarm operation will not generate a
+                # response from the base unit as there is no change, so we
+                # need to reset 'ha_state' here.
+                _LOGGER.debug("Resetting triggered ha_state in disarmed mode")
+                self._ha_state = Translator.HA_STATE_DISARMED
+                self._publish(
+                    '{}/{}'.format(self._config.translator.baseunit.topic,
+                                   Translator.TOPIC_HASTATE),
+                    self._ha_state, True)
             self._loop.create_task(
                 self._baseunit.async_set_operation_mode(operation_mode))
         else:

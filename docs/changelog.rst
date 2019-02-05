@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.11.2
+------
+
+- Fix issue where Home Assistant will not reset from Triggered state when the alarm was triggered in Disarm mode (eg. due to tampering, panic button, environmental).
+
 0.11.1
 ------
 
