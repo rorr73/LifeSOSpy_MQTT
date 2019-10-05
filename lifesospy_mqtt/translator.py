@@ -247,6 +247,7 @@ class Translator(object):
                 try:
                     message = await self._get_task
                 except asyncio.CancelledError:
+                    _LOGGER.debug('Translator loop cancelled.')
                     continue
                 except Exception: # pylint: disable=broad-except
                     # Log any exception but keep going
@@ -298,6 +299,10 @@ class Translator(object):
         self._shutdown = True
         if self._get_task:
             self._get_task.cancel()
+
+        # Issue #8 - Cancel not processed until next message added to queue.
+        # Just put a dummy object on the queue to ensure it is handled immediately.
+        self._pending_messages.sync_q.put_nowait(None)
 
     #
     # METHODS - Private / Internal
