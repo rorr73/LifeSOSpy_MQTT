@@ -1,6 +1,14 @@
 Changelog
 =========
 
+0.11.3
+------
+
+- Perform graceful shutdown when SIGTERM signal received (@bratanon)
+- Fix issue where application doesn't shutdown immediately when signalled to exit.
+
+.. @bratanon: https://github.com/bratanon
+
 0.11.2
 ------
 
