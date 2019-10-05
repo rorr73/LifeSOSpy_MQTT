@@ -236,8 +236,9 @@ class Translator(object):
     async def async_loop(self) -> None:
         """Loop indefinitely to process messages from our subscriptions."""
 
-        # Trap SIGINT so that we can shutdown gracefully
+        # Trap SIGINT and SIGTERM so that we can shutdown gracefully
         signal.signal(signal.SIGINT, self.signal_shutdown)
+        signal.signal(signal.SIGTERM, self.signal_shutdown)
         try:
             while not self._shutdown:
                 # Wait for next message
