@@ -24,6 +24,7 @@ CONF_HA_BIRTH_TOPIC = 'ha_birth_topic'
 CONF_HA_DISCOVERY_PREFIX = 'ha_discovery_prefix'
 CONF_HA_NAME = 'ha_name'
 CONF_HA_NAME_RSSI = 'ha_name_rssi'
+CONF_HA_NAME_BATTERY = 'ha_name_battery'
 CONF_HOST = 'host'
 CONF_NAMESPACES = 'namespaces'
 CONF_PASSWORD = 'password'
@@ -90,6 +91,7 @@ DEFAULT_CONFIG = """
     #  """ + CONF_TOPIC + """: home/front/door
     #  """ + CONF_HA_NAME + """: "Front Door"
     #  """ + CONF_HA_NAME_RSSI + """: "Front Door RSSI"
+    #  """ + CONF_HA_NAME_BATTERY + """: "Front Door Battery"
     #- """ + CONF_DEVICE_ID + """: '123abc'
     #  """ + CONF_TOPIC + """: home/lounge/motion
     #  """ + CONF_AUTO_RESET_INTERVAL + """: 180
@@ -394,6 +396,7 @@ class TranslatorDeviceConfig(object):
         self._auto_reset_interval = settings.get(CONF_AUTO_RESET_INTERVAL)
         self._ha_name = settings.get(CONF_HA_NAME)
         self._ha_name_rssi = settings.get(CONF_HA_NAME_RSSI)
+        self._ha_name_battery = settings.get(CONF_HA_NAME_BATTERY)
 
     @property
     def auto_reset_interval(self) -> int:
@@ -411,18 +414,25 @@ class TranslatorDeviceConfig(object):
         return self._ha_name_rssi
 
     @property
+    def ha_name_battery(self) -> str:
+        """Name to assign the device's battery status in Home Assistant."""
+        return self._ha_name_battery
+
+    @property
     def topic(self) -> str:
         """Topic for the device."""
         return self._topic
 
     def __repr__(self):
-        return "<{}: topic={}, auto_reset_interval={}, ha_name={}, ha_name_rssi={}>".format(
-            self.__class__.__name__,
-            self._topic,
-            self._auto_reset_interval,
-            self._ha_name,
-            self._ha_name_rssi,
-        )
+        return "<{}: topic={}, auto_reset_interval={}, ha_name={}, " \
+               "ha_name_rssi={}, ha_name_battery={}>".format(
+                self.__class__.__name__,
+                self._topic,
+                self._auto_reset_interval,
+                self._ha_name,
+                self._ha_name_rssi,
+                self._ha_name_battery,
+                )
 
 
 class TranslatorSwitchConfig(object):
