@@ -205,7 +205,7 @@ class Config(object):
         # Load the configuration settings
         try:
             with open(config_path, encoding='utf-8') as config_file:
-                settings = yaml.load(config_file) or {}
+                settings = yaml.load(config_file, Loader=yaml.BaseLoader) or {}
         except Exception: # pylint: disable=broad-except
             _LOGGER.error("Failed to parse configuration file", exc_info=True)
             return None
