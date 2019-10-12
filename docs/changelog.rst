@@ -1,13 +1,17 @@
 Changelog
 =========
 
+0.11.4
+------
+
+- Added low battery binary sensor for devices - `#9 <https://github.com/rorr73/LifeSOSpy_MQTT/issues/9>`__ (@bratanon)
+- Fixed a deprecation warning that may be shown when loading the configuration file with PyYAML 5.1 or higher - `#11 <https://github.com/rorr73/LifeSOSpy_MQTT/issues/11>`__ (@bratanon)
+
 0.11.3
 ------
 
-- Perform graceful shutdown when SIGTERM signal received (@bratanon)
-- Fix issue where application doesn't shutdown immediately when signalled to exit.
-
-.. @bratanon: https://github.com/bratanon
+- Perform graceful shutdown when SIGTERM signal received - `#7 <https://github.com/rorr73/LifeSOSpy_MQTT/issues/7>`__ (@bratanon)
+- Fix issue where application doesn't shutdown immediately when signalled to exit - `#8 <https://github.com/rorr73/LifeSOSpy_MQTT/issues/8>`__
 
 0.11.2
 ------
