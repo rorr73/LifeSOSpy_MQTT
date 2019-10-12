@@ -113,6 +113,7 @@ translating between the MQTT client and the LifeSOS ethernet adapter.
        #  auto_reset_interval: 180
        #  ha_name: "Lounge Motion"
        #  ha_name_rssi: "Lounge Motion RSSI"
+       #  ha_name_battery: "Lounge Motion Battery"
 
      # Uncomment any switches you own and provide a topic
      switches:
@@ -196,6 +197,11 @@ Assistant, these settings can either be ignored or removed.
    configuration needed to monitor the signal strength will be exported
    to Home Assistant, and the value will be used as the display name
    for the sensor.
+-  **ha_name_battery**: When this setting is listed under the device, the
+   configuration needed to monitor the battery status (Using `BatteryLow`/
+   `PowerOnReset` events for the device) will be exported to Home Assistant,
+   and the value will be used as the display name for the binary sensor.
+
 
 Logger settings
 ---------------

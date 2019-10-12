@@ -66,6 +66,7 @@ class Translator(object):
     HA_DC_TEMPERATURE = 'temperature'
     HA_DC_VIBRATION = 'vibration'
     HA_DC_WINDOW = 'window'
+    HA_DC_BATTERY = 'battery'
 
     # Icons in Home Assistant
     HA_ICON_RSSI = 'mdi:wifi'
@@ -378,6 +379,8 @@ class Translator(object):
                 self._publish_ha_device_config(device, device_config)
             if device_config.ha_name_rssi:
                 self._publish_ha_device_rssi_config(device, device_config)
+            if device_config.ha_name_battery:
+                self._publish_ha_device_battery_config(device, device_config)
 
     def _baseunit_device_deleted(self, baseunit: BaseUnit, device: Device) -> None: # pylint: disable=no-self-use
         # Remove callbacks from deleted device
@@ -585,6 +588,9 @@ class Translator(object):
                     self._publish_ha_device_config(device, device_config)
                 if device_config.ha_name_rssi:
                     self._publish_ha_device_rssi_config(device, device_config)
+                if device_config.ha_name_battery:
+                    self._publish_ha_device_battery_config(device,
+                                                               device_config)
 
         # Publish config for each switch when enabled
         for switch_number in self._config.translator.switches.keys():
@@ -737,6 +743,34 @@ class Translator(object):
             '{}/{}/{}/config'.format(
                 self._config.translator.ha_discovery_prefix,
                 Translator.HA_PLATFORM_SENSOR,
+                message[Translator.HA_UNIQUE_ID]),
+            json.dumps(message), False)
+
+    def _publish_ha_device_battery_config(self, device: Device,
+                                          device_config: TranslatorDeviceConfig):
+        # Generate message that can be used to automatically configure a binary
+        # sensor for the device's battery state in Home Assistant using
+        # MQTT Discovery
+        message = {
+            Translator.HA_NAME: device_config.ha_name_battery,
+            Translator.HA_UNIQUE_ID: '{}_{:06x}_battery'.format(
+                PROJECT_NAME, device.device_id),
+            Translator.HA_DEVICE_CLASS: Translator.HA_DC_BATTERY,
+            Translator.HA_PAYLOAD_ON: str(DeviceEventCode.BatteryLow),
+            Translator.HA_PAYLOAD_OFF: str(DeviceEventCode.PowerOnReset),
+            Translator.HA_STATE_TOPIC: '{}/event_code'.format(
+                device_config.topic),
+            Translator.HA_AVAILABILITY_TOPIC: '{}/{}'.format(
+                self._config.translator.baseunit.topic,
+                BaseUnit.PROP_IS_CONNECTED),
+            Translator.HA_PAYLOAD_AVAILABLE: str(True),
+            Translator.HA_PAYLOAD_NOT_AVAILABLE: str(False),
+        }
+
+        self._publish(
+            '{}/{}/{}/config'.format(
+                self._config.translator.ha_discovery_prefix,
+                Translator.HA_PLATFORM_BINARY_SENSOR,
                 message[Translator.HA_UNIQUE_ID]),
             json.dumps(message), False)
 
