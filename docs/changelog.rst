@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.11.5
+------
+
+- Fix PIR sensor not automatically resetting motion state when auto_reset_interval defined in configuration file - `#13 <https://github.com/rorr73/LifeSOSpy_MQTT/issues/13>`__
+
 0.11.4
 ------
 
