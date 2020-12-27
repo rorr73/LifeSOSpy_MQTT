@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.11.6
+------
+
+- Updated python-daemon dependency to 2.2.4 to resolve issue with starting in daemon mode under Python 3.8 - `#15 <https://github.com/rorr73/LifeSOSpy_MQTT/issues/15>`__ 
+
 0.11.5
 ------
 

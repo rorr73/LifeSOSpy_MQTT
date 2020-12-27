@@ -21,7 +21,7 @@ setup(
         'paho-mqtt~=1.4.0',
         'pyyaml>=4.2b1',
         'python-dateutil>=2.7.5',
-        'python-daemon~=2.1.2'],
+        'python-daemon~=2.2.4'],
     python_requires='>=3.5.3',
     author='Richard Orr',
     url='https://github.com/rorr73/lifesospy_mqtt',

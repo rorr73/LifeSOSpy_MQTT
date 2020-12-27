@@ -7,7 +7,7 @@ import os
 # Project metadata
 PROJECT_NAME = 'lifesospy_mqtt'
 PROJECT_DESCRIPTION = "MQTT client to report state of LifeSOS security system and devices."
-PROJECT_VERSION = '0.11.5'
+PROJECT_VERSION = '0.11.6'
 __version__ = PROJECT_VERSION
 
 # Exit codes. Only have proper definitions in Unix; just pick an arbitrary value otherwise
